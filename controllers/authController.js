@@ -27,11 +27,18 @@ exports.register = async (req, res) => {
 
         const { username, email, role, password } = req.body;
 
-        // Check if user already exists
-        const userExists = await User.findOne({ where: { email } });
-        if (userExists) {
+        // Check if a user with the same email already exists
+        const userWithEmailExists = await User.findOne({ where: { email } });
+        if (userWithEmailExists) {
             logger.warn(`Registration failed: User with email ${email} already exists.`);
             return res.status(409).json({ message: 'User with this email already exists.' });
+        }
+
+        // ADDED: Check if a user with the same username already exists
+        const userWithUsernameExists = await User.findOne({ where: { username } });
+        if (userWithUsernameExists) {
+            logger.warn(`Registration failed: User with username ${username} already exists.`);
+            return res.status(409).json({ message: 'User with this username already exists.' });
         }
 
         // Hash the password
@@ -59,6 +66,14 @@ exports.register = async (req, res) => {
         });
 
     } catch (error) {
+        // ADDED: Handle specific Sequelize unique constraint errors
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const field = error.errors[0].path;
+            const message = `A user with this ${field} already exists.`;
+            logger.warn(`Sequelize validation error during registration: ${message}`);
+            return res.status(409).json({ message });
+        }
+
         logger.error(`Error during user registration for email ${req.body.email}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
@@ -140,6 +155,30 @@ exports.uploadProfileImage = async (req, res) => {
             await deleteFile(imageUrl, 'partially uploaded image');
         }
         logger.error(`Error uploading profile image for user ${req.user.id}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+// Get authenticated user's profile information
+exports.getProfile = async (req, res) => {
+    try {
+        // The authMiddleware has already attached the user object to the request
+        // We use req.user.id to find the user's data
+        const user = await User.findByPk(req.user.id, {
+            // Exclude the sensitive password hash from the response
+            attributes: { exclude: ['password'] }
+        });
+
+        if (!user) {
+            logger.warn(`Profile request failed for user ${req.user.id}: User not found.`);
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        logger.info(`Profile data retrieved successfully for user ${req.user.id}.`);
+        res.status(200).json(user);
+
+    } catch (error) {
+        logger.error(`Error fetching user profile for user ${req.user.id}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };

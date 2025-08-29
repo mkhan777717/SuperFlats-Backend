@@ -23,7 +23,7 @@ const upload = multer({ storage: storage });
 // -------------------- Auth Routes --------------------
 router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
-// New route for profile image upload
+router.get('/auth/me', authMiddleware, authController.getProfile); // CORRECTED: Added /auth prefix
 router.post(
   '/auth/upload-profile-image',
   authMiddleware, // Ensure the user is authenticated
@@ -42,22 +42,22 @@ router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('tenant'), appointmentController.createAppointment);
 router.get('/appointments/user/:userId', authMiddleware, appointmentController.getUserAppointments);
-router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'manager', 'admin'), appointmentController.updateAppointmentStatus);
+router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'admin'), appointmentController.updateAppointmentStatus); // CORRECTED: Removed manager
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
 
 // -------------------- Payment Routes --------------------
 router.post('/payments', authMiddleware, roleMiddleware('tenant', 'owner'), paymentController.createPayment);
-router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('tenant', 'owner', 'manager', 'admin'), paymentController.getPaymentsByLease);
-router.put('/payments/:id/status', authMiddleware, roleMiddleware('manager', 'admin'), paymentController.updatePaymentStatus);
+router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('tenant', 'owner', 'admin'), paymentController.getPaymentsByLease); // CORRECTED: Removed manager
+router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin'), paymentController.updatePaymentStatus); // CORRECTED: Removed manager
 
 
 // -------------------- Employee Routes --------------------
-// These are protected and typically for 'admin' or 'manager' roles only
-router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
-router.get('/employees', authMiddleware, roleMiddleware('manager', 'admin'), employeeController.getAllEmployees);
-router.get('/employees/:id', authMiddleware, roleMiddleware('manager', 'admin'), employeeController.getEmployeeById);
-router.put('/employees/:id/role', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployeeRole);
+// These are protected and typically for 'admin' or 'owner' roles as well
+router.post('/employees', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.createEmployee); // CORRECTED: Added owner role
+router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.getAllEmployees); // CORRECTED: Added owner role and removed manager
+router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.getEmployeeById); // CORRECTED: Added owner role and removed manager
+router.put('/employees/:id/role', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.updateEmployeeRole); // CORRECTED: Added owner role
 
 
 module.exports = router;
