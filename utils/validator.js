@@ -17,6 +17,14 @@ const createPropertySchema = Joi.object({
   city: Joi.string().required(),
   state: Joi.string().required(),
   zipcode: Joi.string().required(),
+  features: Joi.object({
+    bedrooms: Joi.number().integer().min(0),
+    bathrooms: Joi.number().integer().min(0),
+    area_sqft: Joi.number().positive(),
+    furnishing: Joi.string().valid('furnished', 'semi-furnished', 'unfurnished'),
+    parking: Joi.boolean(),
+    amenities: Joi.string().allow(''), // Allow an empty string for amenities
+  }).optional(),
 });
 
 // Joi schema for creating a new listing

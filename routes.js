@@ -12,6 +12,7 @@ const employeeController = require('./controllers/employeeController');
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
 const roleMiddleware = require('./middlewares/roleMiddleware');
+const bodyParserMiddleware = require('./utils/bodyParserMiddleware');
 
 // Set up multer for file storage
 const storage = multer.memoryStorage();
@@ -29,11 +30,27 @@ router.post(
 );
 
 // -------------------- Property Routes --------------------
-router.post('/properties', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.createProperty);
-router.get('/properties', propertyController.getAllProperties);
+router.post(
+  '/properties',
+  authMiddleware,
+  roleMiddleware('owner', 'admin'),
+  upload.fields([{ name: 'photos', maxCount: 10 }]),
+  bodyParserMiddleware,
+  propertyController.createProperty
+);
+router.get('/properties/search', propertyController.searchAndFilterProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
-router.put('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.updateProperty);
+router.get('/properties', propertyController.getAllProperties);
+router.put(
+  '/properties/:id',
+  authMiddleware,
+  roleMiddleware('owner', 'admin'),
+  upload.fields([{ name: 'photos', maxCount: 10 }]),
+  bodyParserMiddleware,
+  propertyController.updateProperty
+);
 router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.deleteProperty);
+router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
 
 
 // -------------------- Appointment Routes --------------------
