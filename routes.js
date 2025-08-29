@@ -6,6 +6,7 @@ const multer = require('multer');
 const authController = require('./controllers/authController');
 const propertyController = require('./controllers/propertyController');
 const appointmentController = require('./controllers/appointmentController');
+const groupedListingController = require('./controllers/groupedListingController'); // NEW: Import grouped listings controller
 const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
 
@@ -74,5 +75,14 @@ router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'owner
 router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'owner'), employeeController.getEmployeeById);
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.deleteEmployee);
+
+
+// -------------------- Grouped Listing Routes --------------------
+router.post('/grouped-listings', authMiddleware, roleMiddleware('admin', 'owner'), groupedListingController.createGroupedListing);
+router.get('/grouped-listings', groupedListingController.getAllGroupedListings);
+router.get('/grouped-listings/:id', groupedListingController.getGroupedListingById);
+router.patch('/grouped-listings/:id', authMiddleware, roleMiddleware('admin', 'owner'), groupedListingController.updateGroupedListing);
+router.delete('/grouped-listings/:id', authMiddleware, roleMiddleware('admin', 'owner'), groupedListingController.deleteGroupedListing);
+
 
 module.exports = router;

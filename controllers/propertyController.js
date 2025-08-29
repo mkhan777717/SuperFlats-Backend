@@ -57,10 +57,10 @@ exports.createProperty = async (req, res) => {
     // Get the owner_id securely from the authenticated user's token
     const owner_id = req.user.id;
     const { title, description, property_type, address, city, state, zipcode, features } = req.body;
-    
+
     // Get latitude and longitude from the address
     const { latitude, longitude } = await getLatLongFromAddress(address, city, state, zipcode);
-    
+
     // STEP 1: Create the property within the transaction
     const newProperty = await Property.create({
       owner_id,
@@ -96,7 +96,7 @@ exports.createProperty = async (req, res) => {
     }
 
     await PropertyPhoto.bulkCreate(propertyPhotos, { transaction });
-    
+
     // STEP 3: Commit the transaction
     await transaction.commit();
     logger.info(`New property created with ID: ${newProperty.id} by user ID: ${owner_id}`);
@@ -117,7 +117,7 @@ const buildQueryConditions = (query) => {
   const conditions = {};
   const featureConditions = {};
   const allowedFeatures = ['bedrooms', 'bathrooms', 'area_sqft', 'furnishing', 'parking', 'amenities'];
-  
+
   if (query.city) {
     conditions.city = { [Op.iLike]: `%${query.city}%` };
   }
@@ -172,7 +172,7 @@ exports.searchAndFilterProperties = async (req, res) => {
     const { conditions, featureConditions } = buildQueryConditions(req.query);
     const order = [];
     const attributes = { include: [] };
-    
+
     // --- Sorting Options ---
     // The `sort_by` query parameter determines how the results are ordered.
     // The `sort_order` can be `ASC` (default) or `DESC`.
@@ -226,7 +226,7 @@ exports.searchAndFilterProperties = async (req, res) => {
     if (properties.length === 0) {
       logger.info('No properties found matching the search criteria.');
     }
-    
+
     res.status(200).json(properties);
   } catch (error) {
     logger.error('Error fetching properties with filters:', error);
@@ -285,7 +285,7 @@ exports.updateProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
-    
+
     const { features, ...propertyData } = req.body;
     const newPhotos = req.files?.photos;
 
@@ -295,7 +295,7 @@ exports.updateProperty = async (req, res) => {
       logger.warn(`Property with ID ${id} not found for update.`);
       return res.status(404).json({ message: 'Property not found.' });
     }
-    
+
     // Check ownership
     if (property.owner_id !== req.user.id && req.user.role !== 'admin') {
       await transaction.rollback();
@@ -347,13 +347,13 @@ exports.updateProperty = async (req, res) => {
       }
       await PropertyPhoto.bulkCreate(propertyPhotos, { transaction });
     }
-    
+
     await transaction.commit();
     logger.info(`Property with ID ${id} updated successfully.`);
     res.status(200).json({ message: 'Property updated successfully.', property });
 
   } catch (error) {
-      await transaction.rollback();
+    await transaction.rollback();
     logger.error(`Error updating property with ID ${req.params.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
@@ -371,7 +371,7 @@ exports.deleteProperty = async (req, res) => {
       logger.warn(`Property with ID ${id} not found for deletion.`);
       return res.status(404).json({ message: 'Property not found.' });
     }
-    
+
     // Check ownership
     if (property.owner_id !== req.user.id && req.user.role !== 'admin') {
       await transaction.rollback();
@@ -389,7 +389,7 @@ exports.deleteProperty = async (req, res) => {
     await db.Listing.destroy({ where: { property_id: id }, transaction });
 
     await property.destroy({ transaction });
-    
+
     await transaction.commit();
     logger.info(`Property with ID ${id} deleted successfully.`);
     res.status(200).json({ message: 'Property and its associated data deleted successfully.' });
