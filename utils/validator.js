@@ -1,13 +1,11 @@
-// utils/validator.js
-
 const Joi = require('joi');
 
 // Joi schema for user registration data
 const userRegistrationSchema = Joi.object({
-  username: Joi.string().alphanum().min(3).max(30).required(),
+  name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  role: Joi.string().valid('tenant', 'owner', 'agent').required(),
+  role: Joi.string().valid('tenant', 'owner', 'employee').required(),
 });
 
 // Joi schema for creating a new property
@@ -35,20 +33,24 @@ const createListingSchema = Joi.object({
   status: Joi.string().valid('active', 'pending', 'closed').required(),
 });
 
+// Joi schema for employee creation data
+const employeeCreationSchema = Joi.object({
+  name: Joi.string().required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
+  role: Joi.string().valid('agent', 'manager', 'admin').required(),
+});
 
-// Generic validation function
-const validate = (schema) => (req, res, next) => {
-  const { error } = schema.validate(req.body);
-  if (error) {
-    const message = error.details.map(detail => detail.message).join(', ');
-    return res.status(400).json({ error: message });
-  }
-  next();
-};
+// Joi schema for updating an employee's role
+const updateEmployeeRoleSchema = Joi.object({
+  role: Joi.string().valid('agent', 'manager', 'admin').required(),
+});
+
 
 module.exports = {
   userRegistrationSchema,
   createPropertySchema,
   createListingSchema,
-  validate,
+  employeeCreationSchema,
+  updateEmployeeRoleSchema,
 };

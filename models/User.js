@@ -1,5 +1,3 @@
-// models/User.js
-
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -9,10 +7,10 @@ module.exports = (sequelize) => {
             primaryKey: true,
             autoIncrement: true,
         },
-        username: {
+
+        name: {
             type: DataTypes.STRING,
             allowNull: false,
-            unique: true,
         },
         email: {
             type: DataTypes.STRING,
@@ -22,7 +20,6 @@ module.exports = (sequelize) => {
                 isEmail: true,
             },
         },
-        // ADD THIS FIELD
         password: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -31,12 +28,12 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: false,
             validate: {
-                isIn: [['tenant', 'owner', 'agent', 'admin']],
+                isIn: [['tenant', 'owner', 'employee']],
             },
         },
         profile_image: {
             type: DataTypes.STRING,
-            allowNull: true, // The image is optional
+            allowNull: true,
         },
         created_at: {
             type: DataTypes.DATE,
@@ -49,37 +46,31 @@ module.exports = (sequelize) => {
     });
 
     User.associate = (models) => {
-        // A user can own many properties.
         User.hasMany(models.Property, {
             foreignKey: 'owner_id',
             as: 'properties',
         });
 
-        // A user can be a lister for many listings.
         User.hasMany(models.Listing, {
             foreignKey: 'lister_id',
             as: 'listings',
         });
 
-        // A user can have many appointments.
         User.hasMany(models.Appointment, {
             foreignKey: 'user_id',
             as: 'appointments',
         });
 
-        // A user can be a tenant for many leases.
         User.hasMany(models.Lease, {
             foreignKey: 'tenant_id',
             as: 'leases',
         });
 
-        // A user can make many payments.
         User.hasMany(models.Payment, {
             foreignKey: 'payer_id',
             as: 'payments',
         });
 
-        // A user can be an employee. This is a one-to-one relationship.
         User.hasOne(models.Employee, {
             foreignKey: 'user_id',
             as: 'employee',
