@@ -10,14 +10,12 @@ const userRegistrationSchema = Joi.object({
 
 // Joi schema for creating a new property
 const createPropertySchema = Joi.object({
-  owner_id: Joi.number().integer().required(),
   title: Joi.string().min(5).required(),
   description: Joi.string().min(20).required(),
   property_type: Joi.string().valid('apartment', 'villa', 'office', 'land').required(),
   address: Joi.string().required(),
   city: Joi.string().required(),
   state: Joi.string().required(),
-  country: Joi.string().required(),
   zipcode: Joi.string().required(),
 });
 

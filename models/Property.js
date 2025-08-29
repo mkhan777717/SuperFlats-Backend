@@ -1,5 +1,3 @@
-// models/Property.js
-
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -35,9 +33,7 @@ module.exports = (sequelize) => {
     state: {
       type: DataTypes.STRING,
     },
-    country: {
-      type: DataTypes.STRING,
-    },
+
     zipcode: {
       type: DataTypes.STRING,
     },
@@ -63,7 +59,7 @@ module.exports = (sequelize) => {
       foreignKey: 'property_id',
       as: 'listings',
     });
-    
+
     // A property has one set of features.
     Property.hasOne(models.PropertyFeature, {
       foreignKey: 'property_id',

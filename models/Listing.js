@@ -1,4 +1,3 @@
-// models/Listing.js
 
 const { DataTypes } = require('sequelize');
 
