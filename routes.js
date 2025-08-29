@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
+const multer = require('multer'); // Import multer
 
 // Import controllers
 const authController = require('./controllers/authController');
@@ -14,10 +15,21 @@ const employeeController = require('./controllers/employeeController');
 const authMiddleware = require('./middlewares/authMiddleware');
 const roleMiddleware = require('./middlewares/roleMiddleware');
 
+// Set up multer for file storage
+// We use memoryStorage so the file buffer is available for sharp and Firebase
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
 // -------------------- Auth Routes --------------------
 router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
-
+// New route for profile image upload
+router.post(
+  '/auth/upload-profile-image',
+  authMiddleware, // Ensure the user is authenticated
+  upload.single('profile_image'), // Middleware to handle a single file with the field name 'profile_image'
+  authController.uploadProfileImage
+);
 
 // -------------------- Property Routes --------------------
 router.post('/properties', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.createProperty);
