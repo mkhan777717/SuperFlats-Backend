@@ -52,6 +52,11 @@ const updateEmployeeRoleSchema = Joi.object({
   role: Joi.string().valid('agent', 'manager', 'admin').required(),
 });
 
+// Joi schema for creating a new appointment
+const createAppointmentSchema = Joi.object({
+  listing_id: Joi.number().integer().required(),
+  scheduled_at: Joi.date().iso().required(),
+});
 
 module.exports = {
   userRegistrationSchema,
@@ -59,4 +64,6 @@ module.exports = {
   createListingSchema,
   employeeCreationSchema,
   updateEmployeeRoleSchema,
+  createAppointmentSchema,
 };
+  

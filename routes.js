@@ -41,7 +41,7 @@ router.post(
 router.get('/properties/search', propertyController.searchAndFilterProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
 router.get('/properties', propertyController.getAllProperties);
-router.put(
+router.patch(
   '/properties/:id',
   authMiddleware,
   roleMiddleware('owner', 'admin'),
@@ -55,21 +55,23 @@ router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), 
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('tenant'), appointmentController.createAppointment);
-router.get('/appointments/user/:userId', authMiddleware, appointmentController.getUserAppointments);
-router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'manager', 'admin'), appointmentController.updateAppointmentStatus);
+// CHANGED: This route now uses '/me' to get the current user's appointments
+// The user ID is now securely taken from the authentication token in the controller
+router.get('/appointments/me', authMiddleware, appointmentController.getUserAppointments);
+router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
 
 // -------------------- Payment Routes --------------------
 router.post('/payments', authMiddleware, roleMiddleware('tenant', 'owner'), paymentController.createPayment);
 router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('tenant', 'owner', 'admin'), paymentController.getPaymentsByLease);
-router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'manager'), paymentController.updatePaymentStatus);
+router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'owner'), paymentController.updatePaymentStatus);
 
 
 // -------------------- Employee Routes --------------------
 router.post('/employees', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.createEmployee);
-router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getAllEmployees);
-router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getEmployeeById);
+router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'owner'), employeeController.getAllEmployees);
+router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'owner'), employeeController.getEmployeeById);
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.deleteEmployee);
 

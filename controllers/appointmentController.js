@@ -1,26 +1,41 @@
-// controllers/appointmentController.js
-
 const db = require('../models');
 const logger = require('../utils/logger');
+const { Op } = require('sequelize'); // Import Op for comparison operators
 const Appointment = db.Appointment;
 const Listing = db.Listing;
+const Property = db.Property; // We'll need this to check property ownership
 const User = db.User;
 
 // Create a new appointment
 exports.createAppointment = async (req, res) => {
   try {
-    const { listing_id, user_id, scheduled_at } = req.body;
+    const { listing_id, scheduled_at } = req.body;
+    // CRITICAL SECURITY FIX: Get the user_id from the authenticated token, not the request body
+    const user_id = req.user.id; 
 
     // Check if the listing exists and is active
     const listing = await Listing.findByPk(listing_id);
     if (!listing || listing.status !== 'active') {
+      logger.warn(`Attempted to create appointment on non-existent or inactive listing ID: ${listing_id}`);
       return res.status(404).json({ message: 'Listing not found or is not active.' });
     }
 
-    // Check if the user exists
-    const user = await User.findByPk(user_id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found.' });
+    // Check for a scheduling conflict for the same listing at the same time
+    const existingAppointment = await Appointment.findOne({
+      where: {
+        listing_id,
+        scheduled_at,
+        // Ensure no confirmed or pending appointments exist at this time
+        [Op.or]: [
+          { status: 'pending' },
+          { status: 'confirmed' }
+        ]
+      }
+    });
+
+    if (existingAppointment) {
+      logger.warn(`Appointment conflict detected for listing ${listing_id} at ${scheduled_at}.`);
+      return res.status(409).json({ message: 'This time slot is already booked. Please choose a different time.' });
     }
 
     const newAppointment = await Appointment.create({
@@ -42,23 +57,28 @@ exports.createAppointment = async (req, res) => {
 // Get all appointments for a user
 exports.getUserAppointments = async (req, res) => {
   try {
-    const { userId } = req.params;
+    // CRITICAL SECURITY FIX: Get the user ID from the token, not the request params.
+    // This prevents a user from viewing another user's appointments.
+    const { id: userId } = req.user;
 
     const appointments = await Appointment.findAll({
       where: { user_id: userId },
       include: [
         { model: Listing, as: 'listing' },
       ],
+      order: [['scheduled_at', 'DESC']]
     });
-
+    
+    // BETTER UX: Return an empty array instead of 404
     if (!appointments.length) {
-      return res.status(404).json({ message: 'No appointments found for this user.' });
+      logger.info(`No appointments found for user ${userId}. Returning an empty array.`);
+      return res.status(200).json([]);
     }
 
     res.status(200).json(appointments);
 
   } catch (error) {
-    logger.error(`Error fetching appointments for user ${req.params.userId}:`, error);
+    logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
@@ -75,9 +95,28 @@ exports.updateAppointmentStatus = async (req, res) => {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` });
     }
 
-    const appointment = await Appointment.findByPk(id);
+    const appointment = await Appointment.findByPk(id, {
+        include: [{ 
+            model: Listing, 
+            as: 'listing', 
+            include: [{
+                model: Property,
+                as: 'property'
+            }]
+        }]
+    });
+    
     if (!appointment) {
       return res.status(404).json({ message: 'Appointment not found.' });
+    }
+
+    // CRITICAL SECURITY FIX: Only the appointment user or the property owner can update the status
+    const isOwner = appointment.listing.property.owner_id === req.user.id;
+    const isUser = appointment.user_id === req.user.id;
+
+    if (!isOwner && !isUser) {
+        logger.warn(`Unauthorized attempt to update appointment ID ${id} by user ID ${req.user.id}.`);
+        return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
     }
 
     appointment.status = status;
@@ -106,6 +145,14 @@ exports.getAppointmentById = async (req, res) => {
 
         if (!appointment) {
             return res.status(404).json({ message: 'Appointment not found.' });
+        }
+
+        // CRITICAL SECURITY FIX: Only the appointment user or the property owner can view this appointment
+        const isOwner = appointment.listing.property.owner_id === req.user.id;
+        const isUser = appointment.user_id === req.user.id;
+        if (!isOwner && !isUser) {
+            logger.warn(`Unauthorized attempt to view appointment ID ${id} by user ID ${req.user.id}.`);
+            return res.status(403).json({ message: 'You are not authorized to view this appointment.' });
         }
 
         res.status(200).json(appointment);
