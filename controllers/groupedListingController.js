@@ -20,6 +20,24 @@ exports.createGroupedListing = async (req, res) => {
             return res.status(400).json({ message: 'Name and at least one listing ID are required.' });
         }
 
+        // CRITICAL VALIDATION: Check if all listing IDs exist before creating associations
+        const existingListings = await Listing.findAll({
+            where: {
+                id: {
+                    [Op.in]: listing_ids
+                }
+            }
+        });
+
+        if (existingListings.length !== listing_ids.length) {
+            await transaction.rollback();
+            // Optional: Find the invalid IDs to provide a more specific error message
+            const foundIds = existingListings.map(l => l.id);
+            const notFoundIds = listing_ids.filter(id => !foundIds.includes(id));
+            logger.warn(`Attempt to create grouped listing with non-existent listing IDs: ${notFoundIds.join(', ')}`);
+            return res.status(400).json({ message: `One or more listing IDs were not found: ${notFoundIds.join(', ')}` });
+        }
+
         // 1. Create the new grouped listing
         const newGroup = await GroupedListing.create({
             name,
@@ -27,9 +45,9 @@ exports.createGroupedListing = async (req, res) => {
         }, { transaction });
 
         // 2. Add listings to the grouped listing
-        const listingsToAdd = listing_ids.map(id => ({
+        const listingsToAdd = existingListings.map(listing => ({
             group_id: newGroup.id,
-            listing_id: id,
+            listing_id: listing.id,
         }));
         await db.GroupedListingItem.bulkCreate(listingsToAdd, { transaction });
 
@@ -118,9 +136,15 @@ exports.updateGroupedListing = async (req, res) => {
         // 2. Remove old associations
         await groupedListing.setListings([], { transaction });
 
-        // 3. Add new associations
+        // CRITICAL VALIDATION: Check if all listing IDs exist before creating associations
         if (listing_ids && listing_ids.length > 0) {
             const listings = await Listing.findAll({ where: { id: { [Op.in]: listing_ids } } });
+            if (listings.length !== listing_ids.length) {
+                await transaction.rollback();
+                const foundIds = listings.map(l => l.id);
+                const notFoundIds = listing_ids.filter(id => !foundIds.includes(id));
+                return res.status(400).json({ message: `One or more listing IDs were not found: ${notFoundIds.join(', ')}` });
+            }
             await groupedListing.addListings(listings, { transaction });
         }
 

@@ -66,8 +66,8 @@ router.delete('/listings/:id', authMiddleware, listingController.deleteListing);
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('tenant'), appointmentController.createAppointment);
-router.get('/appointments/me', authMiddleware, roleMiddleware('tenant'), appointmentController.getUserAppointments);
-router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
+router.get('/appointments/me', authMiddleware, roleMiddleware('tenant', 'owner', 'agent', 'admin'), appointmentController.getUserAppointments);
+router.put('/appointments/:id/status', authMiddleware, roleMiddleware('tenant', 'agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
 
