@@ -1,8 +1,6 @@
-// models/Payment.js
-
 const { DataTypes } = require('sequelize');
 
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const Payment = sequelize.define('Payment', {
     id: {
       type: DataTypes.INTEGER,
@@ -34,7 +32,7 @@ module.exports = (sequelize) => {
     method: {
       type: DataTypes.STRING,
       validate: {
-        isIn: [['card', 'bank', 'cash', 'wallet']],
+        isIn: [['bank', 'cash']],
       },
     },
     status: {

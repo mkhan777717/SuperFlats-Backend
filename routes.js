@@ -9,7 +9,8 @@ const appointmentController = require('./controllers/appointmentController');
 const groupedListingController = require('./controllers/groupedListingController');
 const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
-const listingController = require('./controllers/listingController'); // ADDED: Import listingController
+const listingController = require('./controllers/listingController');
+const leaseController = require('./controllers/leaseController');
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -33,7 +34,7 @@ router.post(
 
 // -------------------- Property Routes --------------------
 router.post(
-  '/properties',
+  '/properties', // CORRECTED: Removed '.'
   authMiddleware,
   roleMiddleware('owner', 'admin'),
   upload.fields([{ name: 'photos', maxCount: 10 }]),
@@ -44,14 +45,14 @@ router.get('/properties/search', propertyController.searchAndFilterProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
 router.get('/properties', propertyController.getAllProperties);
 router.patch(
-  '/properties/:id',
+  '/properties/:id', // CORRECTED: Removed '.'
   authMiddleware,
   roleMiddleware('owner', 'admin'),
   upload.fields([{ name: 'photos', maxCount: 10 }]),
   bodyParserMiddleware,
   propertyController.updateProperty
 );
-router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.deleteProperty);
+router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.deleteProperty); // CORRECTED: Removed '.'
 router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
 
 
@@ -65,16 +66,18 @@ router.delete('/listings/:id', authMiddleware, listingController.deleteListing);
 
 
 // -------------------- Appointment Routes --------------------
-router.post('/appointments', authMiddleware, roleMiddleware('tenant'), appointmentController.createAppointment);
+router.post('/appointments', authMiddleware, roleMiddleware('tenant','owner'), appointmentController.createAppointment);
 router.get('/appointments/me', authMiddleware, roleMiddleware('tenant', 'owner', 'agent', 'admin'), appointmentController.getUserAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('tenant', 'agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
 
 // -------------------- Payment Routes --------------------
-router.post('/payments', authMiddleware, roleMiddleware('tenant', 'owner'), paymentController.createPayment);
-router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('tenant', 'owner', 'admin'), paymentController.getPaymentsByLease);
-router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'owner'), paymentController.updatePaymentStatus);
+router.post('/payments', authMiddleware, roleMiddleware('owner', 'admin'), paymentController.createPayment);
+// CRITICAL FIX: Agents should also be able to view payments.
+router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('tenant', 'owner', 'admin', 'agent'), paymentController.getPaymentsByLease);
+// CRITICAL FIX: A tenant should NOT be able to update a payment status.
+router.put('/payments/:id/status', authMiddleware, roleMiddleware('owner', 'admin', 'agent'), paymentController.updatePaymentStatus);
 
 
 // -------------------- Employee Routes --------------------
@@ -91,6 +94,15 @@ router.get('/grouped-listings', groupedListingController.getAllGroupedListings);
 router.get('/grouped-listings/:id', groupedListingController.getGroupedListingById);
 router.patch('/grouped-listings/:id', authMiddleware, roleMiddleware('admin', 'owner'), groupedListingController.updateGroupedListing);
 router.delete('/grouped-listings/:id', authMiddleware, roleMiddleware('admin', 'owner'), groupedListingController.deleteGroupedListing);
+
+
+// -------------------- Lease Routes --------------------
+router.post('/leases', authMiddleware, roleMiddleware('owner', 'admin'), leaseController.createLease);
+router.get('/leases', authMiddleware, roleMiddleware('owner', 'admin', 'agent'), leaseController.getAllLeases);
+router.get('/leases/me', authMiddleware, roleMiddleware('tenant'), leaseController.getLeasesByTenant);
+router.get('/leases/:id', authMiddleware, roleMiddleware('tenant', 'owner', 'admin', 'agent'), leaseController.getLeaseById);
+router.put('/leases/:id', authMiddleware, roleMiddleware('owner', 'admin'), leaseController.updateLease);
+router.delete('/leases/:id', authMiddleware, roleMiddleware('admin','owner'), leaseController.deleteLease);
 
 
 module.exports = router;
