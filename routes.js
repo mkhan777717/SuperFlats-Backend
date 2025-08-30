@@ -9,6 +9,7 @@ const appointmentController = require('./controllers/appointmentController');
 const groupedListingController = require('./controllers/groupedListingController');
 const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
+const listingController = require('./controllers/listingController'); // ADDED: Import listingController
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -52,6 +53,14 @@ router.patch(
 );
 router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.deleteProperty);
 router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
+
+
+// -------------------- Listing Routes --------------------
+router.post('/listings', authMiddleware, roleMiddleware('owner', 'admin'), listingController.createListing); // Requires authentication and specific role
+router.get('/listings', listingController.getAllListings); // Public route
+router.get('/listings/:id', listingController.getListingById); // Public route
+router.patch('/listings/:id', authMiddleware, listingController.updateListing); // Requires authentication for the specific lister
+router.delete('/listings/:id', authMiddleware, listingController.deleteListing); // Requires authentication for the specific lister
 
 
 // -------------------- Appointment Routes --------------------
