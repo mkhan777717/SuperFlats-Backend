@@ -38,6 +38,76 @@ exports.createListing = async (req, res) => {
     }
 };
 
+// Get all listings with search and filters
+exports.searchListings = async (req, res) => {
+    try {
+        const {
+            min_price,
+            max_price,
+            status,
+            keywords,
+            sort_by,
+            sort_order,
+            limit,
+            offset,
+        } = req.query;
+
+        const whereClause = {};
+
+        // Price filtering
+        if (min_price) {
+            whereClause.price = { [Op.gte]: parseFloat(min_price) };
+        }
+        if (max_price) {
+            if (whereClause.price) {
+                whereClause.price = { ...whereClause.price, [Op.lte]: parseFloat(max_price) };
+            } else {
+                whereClause.price = { [Op.lte]: parseFloat(max_price) };
+            }
+        }
+
+        // Status filter
+        if (status) {
+            whereClause.status = status;
+        }
+
+        // Keyword search in title and description
+        if (keywords) {
+            whereClause[Op.or] = [
+                { title: { [Op.like]: `%${keywords}%` } },
+                { description: { [Op.like]: `%${keywords}%` } },
+            ];
+        }
+
+        const orderClause = [];
+        if (sort_by) {
+            orderClause.push([sort_by, sort_order || 'ASC']);
+        } else {
+            // Default sort by created_at in descending order
+            orderClause.push(['created_at', 'DESC']);
+        }
+
+        const listings = await Listing.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Property,
+                    as: 'property',
+                    include: ['photos'],
+                },
+            ],
+            order: orderClause,
+            limit: limit ? parseInt(limit, 10) : undefined,
+            offset: offset ? parseInt(offset, 10) : undefined,
+        });
+
+        res.status(200).json(listings);
+    } catch (error) {
+        logger.error('Error fetching listings:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
 // Get all listings
 exports.getAllListings = async (req, res) => {
     try {
@@ -94,9 +164,15 @@ exports.updateListing = async (req, res) => {
         const { id } = req.params;
         const listerId = req.user.id;
 
-        const listing = await Listing.findOne({ where: { id, lister_id: listerId } });
+        const listing = await Listing.findOne({ where: { id } });
         if (!listing) {
-            return res.status(404).json({ message: 'Listing not found or you are not the lister.' });
+            return res.status(404).json({ message: 'Listing not found.' });
+        }
+
+        // Check if the authenticated user is the lister or an admin
+        const isAuthorized = listing.lister_id === listerId || req.user.role === 'admin';
+        if (!isAuthorized) {
+            return res.status(403).json({ message: 'Forbidden: You do not have permission to update this listing.' });
         }
 
         await listing.update(req.body);
@@ -115,13 +191,18 @@ exports.deleteListing = async (req, res) => {
         const { id } = req.params;
         const listerId = req.user.id;
 
-        const result = await Listing.destroy({
-            where: { id, lister_id: listerId },
-        });
-
-        if (result === 0) {
-            return res.status(404).json({ message: 'Listing not found or you are not the lister.' });
+        const listing = await Listing.findOne({ where: { id } });
+        if (!listing) {
+            return res.status(404).json({ message: 'Listing not found.' });
         }
+
+        // Check if the authenticated user is the lister or an admin
+        const isAuthorized = listing.lister_id === listerId || req.user.role === 'admin';
+        if (!isAuthorized) {
+            return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this listing.' });
+        }
+
+        await listing.destroy();
 
         logger.info(`Listing ${id} deleted by user ${listerId}`);
         res.status(200).json({ message: 'Listing deleted successfully.' });

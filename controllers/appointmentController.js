@@ -11,7 +11,7 @@ exports.createAppointment = async (req, res) => {
   try {
     const { listing_id, scheduled_at } = req.body;
     // CRITICAL SECURITY FIX: Get the user_id from the authenticated token, not the request body
-    const user_id = req.user.id; 
+    const user_id = req.user.id;
 
     // Check if the listing exists and is active
     const listing = await Listing.findByPk(listing_id);
@@ -68,7 +68,7 @@ exports.getUserAppointments = async (req, res) => {
       ],
       order: [['scheduled_at', 'DESC']]
     });
-    
+
     // BETTER UX: Return an empty array instead of 404
     if (!appointments.length) {
       logger.info(`No appointments found for user ${userId}. Returning an empty array.`);
@@ -88,35 +88,36 @@ exports.updateAppointmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
 
-    // Basic validation for allowed status values
     const allowedStatuses = ['confirmed', 'cancelled', 'completed'];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` });
     }
 
     const appointment = await Appointment.findByPk(id, {
-        include: [{ 
-            model: Listing, 
-            as: 'listing', 
-            include: [{
-                model: Property,
-                as: 'property'
-            }]
+      include: [{
+        model: Listing,
+        as: 'listing',
+        include: [{
+          model: Property,
+          as: 'property'
         }]
+      }]
     });
-    
+
     if (!appointment) {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
 
-    // CRITICAL SECURITY FIX: Only the appointment user or the property owner can update the status
-    const isOwner = appointment.listing.property.owner_id === req.user.id;
-    const isUser = appointment.user_id === req.user.id;
+    const isOwner = appointment.listing.property.owner_id === userId;
+    console.log(userId);
+    const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
 
-    if (!isOwner && !isUser) {
-        logger.warn(`Unauthorized attempt to update appointment ID ${id} by user ID ${req.user.id}.`);
-        return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
+    if (!isOwner && !isAdminOrAgent) {
+      logger.warn(`Unauthorized attempt to update appointment ID ${id} by user ID ${userId}.`);
+      return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
     }
 
     appointment.status = status;
@@ -133,31 +134,34 @@ exports.updateAppointmentStatus = async (req, res) => {
 
 // Get a single appointment by ID
 exports.getAppointmentById = async (req, res) => {
-    try {
-        const { id } = req.params;
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
 
-        const appointment = await Appointment.findByPk(id, {
-            include: [
-                { model: Listing, as: 'listing' },
-                { model: User, as: 'user' },
-            ],
-        });
+    const appointment = await Appointment.findByPk(id, {
+      include: [
+        { model: Listing, as: 'listing', include: [{ model: Property, as: 'property' }] },
+        { model: User, as: 'user' },
+      ],
+    });
 
-        if (!appointment) {
-            return res.status(404).json({ message: 'Appointment not found.' });
-        }
-
-        // CRITICAL SECURITY FIX: Only the appointment user or the property owner can view this appointment
-        const isOwner = appointment.listing.property.owner_id === req.user.id;
-        const isUser = appointment.user_id === req.user.id;
-        if (!isOwner && !isUser) {
-            logger.warn(`Unauthorized attempt to view appointment ID ${id} by user ID ${req.user.id}.`);
-            return res.status(403).json({ message: 'You are not authorized to view this appointment.' });
-        }
-
-        res.status(200).json(appointment);
-    } catch (error) {
-        logger.error(`Error fetching appointment ${req.params.id}:`, error);
-        res.status(500).json({ error: 'Internal server error.' });
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found.' });
     }
+
+    const isOwner = appointment.listing.property.owner_id === userId;
+    const isUser = appointment.user_id === userId;
+    const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
+
+    if (!isOwner && !isUser && !isAdminOrAgent) {
+      logger.warn(`Unauthorized attempt to view appointment ID ${id} by user ID ${userId}.`);
+      return res.status(403).json({ message: 'You are not authorized to view this appointment.' });
+    }
+
+    res.status(200).json(appointment);
+  } catch (error) {
+    logger.error(`Error fetching appointment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 };

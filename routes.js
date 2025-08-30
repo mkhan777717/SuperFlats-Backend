@@ -57,6 +57,7 @@ router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), 
 
 // -------------------- Listing Routes --------------------
 router.post('/listings', authMiddleware, roleMiddleware('owner', 'admin'), listingController.createListing); // Requires authentication and specific role
+router.get('/listings/search', listingController.searchListings); // ADDED: Search route for listings
 router.get('/listings', listingController.getAllListings); // Public route
 router.get('/listings/:id', listingController.getListingById); // Public route
 router.patch('/listings/:id', authMiddleware, listingController.updateListing); // Requires authentication for the specific lister
@@ -65,7 +66,7 @@ router.delete('/listings/:id', authMiddleware, listingController.deleteListing);
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('tenant'), appointmentController.createAppointment);
-router.get('/appointments/me', authMiddleware, appointmentController.getUserAppointments);
+router.get('/appointments/me', authMiddleware, roleMiddleware('tenant'), appointmentController.getUserAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
