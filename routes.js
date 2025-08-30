@@ -6,7 +6,7 @@ const multer = require('multer');
 const authController = require('./controllers/authController');
 const propertyController = require('./controllers/propertyController');
 const appointmentController = require('./controllers/appointmentController');
-const groupedListingController = require('./controllers/groupedListingController'); // NEW: Import grouped listings controller
+const groupedListingController = require('./controllers/groupedListingController');
 const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
 
@@ -56,8 +56,6 @@ router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), 
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('tenant'), appointmentController.createAppointment);
-// CHANGED: This route now uses '/me' to get the current user's appointments
-// The user ID is now securely taken from the authentication token in the controller
 router.get('/appointments/me', authMiddleware, appointmentController.getUserAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
@@ -71,8 +69,8 @@ router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'owne
 
 // -------------------- Employee Routes --------------------
 router.post('/employees', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.createEmployee);
-router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'owner'), employeeController.getAllEmployees);
-router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'owner'), employeeController.getEmployeeById);
+router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getAllEmployees); // UPDATED: Added manager role
+router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getEmployeeById); // UPDATED: Added manager role
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.deleteEmployee);
 

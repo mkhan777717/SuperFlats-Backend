@@ -8,6 +8,7 @@ const PropertyFeature = db.PropertyFeature;
 const PropertyPhoto = db.PropertyPhoto;
 const User = db.User;
 const axios = require('axios');
+const Listing = db.Listing; // ADDED: Import the Listing model
 
 // Helper function to get Lat/Long from an address using a geocoding service
 const getLatLongFromAddress = async (address, city, state, zipcode) => {
@@ -119,21 +120,21 @@ const buildQueryConditions = (query) => {
   const allowedFeatures = ['bedrooms', 'bathrooms', 'area_sqft', 'furnishing', 'parking', 'amenities'];
 
   if (query.city) {
-    conditions.city = { [Op.iLike]: `%${query.city}%` };
+    conditions.city = { [Op.like]: `%${query.city}%` };
   }
   if (query.state) {
-    conditions.state = { [Op.iLike]: `%${query.state}%` };
+    conditions.state = { [Op.like]: `%${query.state}%` };
   }
   if (query.zipcode) {
     conditions.zipcode = query.zipcode;
   }
   if (query.type) {
-    conditions.property_type = { [Op.iLike]: `%${query.type}%` };
+    conditions.property_type = { [Op.like]: `%${query.type}%` };
   }
   if (query.search) {
     conditions[Op.or] = [
-      { title: { [Op.iLike]: `%${query.search}%` } },
-      { description: { [Op.iLike]: `%${query.search}%` } },
+      { title: { [Op.like]: `%${query.search}%` } },
+      { description: { [Op.like]: `%${query.search}%` } },
     ];
   }
 
@@ -176,6 +177,7 @@ exports.searchAndFilterProperties = async (req, res) => {
     // --- Sorting Options ---
     // The `sort_by` query parameter determines how the results are ordered.
     // The `sort_order` can be `ASC` (default) or `DESC`.
+    const includeListings = [];
 
     // Option 1: Sort by distance from a given point.
     // This is a special sorting option that uses the Haversine formula.
@@ -195,6 +197,16 @@ exports.searchAndFilterProperties = async (req, res) => {
       ]);
       // Use the newly created `distance_miles` attribute for sorting.
       order.push([literal('distance_miles'), req.query.sort_order || 'ASC']);
+    } else if (req.query.sort_by === 'price') {
+      // Logic to handle sorting by price from the Listing model
+      order.push([{ model: Listing, as: 'listings' }, 'price', req.query.sort_order || 'DESC']);
+      // Add the listings model to the include array to make the join
+      includeListings.push({
+        model: Listing,
+        as: 'listings',
+        attributes: ['price'],
+        required: true, // This makes it an INNER JOIN, ensuring we only get properties with listings
+      });
     } else {
       // Option 2 (Default): Sort by any other column, such as `created_at`.
       // `sort_by=created_at`
@@ -209,6 +221,7 @@ exports.searchAndFilterProperties = async (req, res) => {
       where: conditions,
       attributes,
       include: [
+        ...includeListings, // Include the listings model if sorting by price
         {
           model: PropertyFeature,
           as: 'features',
@@ -221,6 +234,7 @@ exports.searchAndFilterProperties = async (req, res) => {
       order,
       limit,
       offset,
+      subQuery: false, // ADDED: Prevents Sequelize from creating a nested subquery for the ORDER BY clause
     });
 
     if (properties.length === 0) {
