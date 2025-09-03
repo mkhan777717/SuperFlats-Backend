@@ -166,3 +166,70 @@ exports.getProfile = async (req, res) => {
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
+
+// Update user's name and email
+exports.updateProfile = async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        const user = await User.findByPk(req.user.id);
+        if (!user) {
+            logger.warn(`Profile update failed for user ${req.user.id}: User not found.`);
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Check if the new email already exists and belongs to a different user
+        if (email && email !== user.email) {
+            const emailExists = await User.findOne({ where: { email } });
+            if (emailExists) {
+                logger.warn(`Profile update failed for user ${req.user.id}: Email '${email}' is already in use.`);
+                return res.status(409).json({ message: 'This email is already in use.' });
+            }
+        }
+        
+        user.name = name || user.name;
+        user.email = email || user.email;
+
+        await user.save();
+
+        logger.info(`User profile updated for user ${user.id}.`);
+        res.status(200).json({ message: 'Profile updated successfully.', user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+        }});
+
+    } catch (error) {
+        logger.error(`Error updating profile for user ${req.user.id}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+// Remove a user's profile image
+exports.removeProfileImage = async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Check if a profile image URL exists
+        if (!user.profile_image) {
+            return res.status(400).json({ message: 'No profile image to remove.' });
+        }
+
+        // Delete the image file from storage
+        await deleteFile(user.profile_image, 'profile image');
+
+        // Remove the URL from the database
+        user.profile_image = null;
+        await user.save();
+
+        logger.info(`Profile image removed successfully for user ${user.id}.`);
+        res.status(200).json({ message: 'Profile image removed successfully.' });
+
+    } catch (error) {
+        logger.error(`Error removing profile image for user ${req.user.id}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
