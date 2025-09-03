@@ -31,6 +31,8 @@ router.post(
   upload.single('profile_image'),
   authController.uploadProfileImage
 );
+router.put('/auth/me', authMiddleware, authController.updateProfile);
+router.delete('/auth/remove-profile-image', authMiddleware, authController.removeProfileImage);
 
 // -------------------- Property Routes --------------------
 router.post(
@@ -66,7 +68,7 @@ router.delete('/listings/:id', authMiddleware, listingController.deleteListing);
 
 
 // -------------------- Appointment Routes --------------------
-router.post('/appointments', authMiddleware, roleMiddleware('tenant','owner'), appointmentController.createAppointment);
+router.post('/appointments', authMiddleware, roleMiddleware('tenant', 'owner'), appointmentController.createAppointment);
 router.get('/appointments/me', authMiddleware, roleMiddleware('tenant', 'owner', 'agent', 'admin'), appointmentController.getUserAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('tenant', 'agent', 'owner', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
@@ -102,7 +104,7 @@ router.get('/leases', authMiddleware, roleMiddleware('owner', 'admin', 'agent'),
 router.get('/leases/me', authMiddleware, roleMiddleware('tenant'), leaseController.getLeasesByTenant);
 router.get('/leases/:id', authMiddleware, roleMiddleware('tenant', 'owner', 'admin', 'agent'), leaseController.getLeaseById);
 router.put('/leases/:id', authMiddleware, roleMiddleware('owner', 'admin'), leaseController.updateLease);
-router.delete('/leases/:id', authMiddleware, roleMiddleware('admin','owner'), leaseController.deleteLease);
+router.delete('/leases/:id', authMiddleware, roleMiddleware('admin', 'owner'), leaseController.deleteLease);
 
 
 module.exports = router;
