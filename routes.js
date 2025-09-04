@@ -15,7 +15,7 @@ const leaseController = require('./controllers/leaseController');
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
 const roleMiddleware = require('./middlewares/roleMiddleware');
-const bodyParserMiddleware = require('./utils/bodyParserMiddleware');
+const bodyParserMiddleware = require('./utils/bodyParserMiddleware'); // CORRECTED PATH
 
 // Set up multer for file storage
 const storage = multer.memoryStorage();
@@ -33,10 +33,11 @@ router.post(
 );
 router.put('/auth/me', authMiddleware, authController.updateProfile);
 router.delete('/auth/remove-profile-image', authMiddleware, authController.removeProfileImage);
+router.put('/auth/update-password', authMiddleware, authController.updatePassword);
 
 // -------------------- Property Routes --------------------
 router.post(
-  '/properties', // CORRECTED: Removed '.'
+  '/properties', 
   authMiddleware,
   roleMiddleware('owner', 'admin'),
   upload.fields([{ name: 'photos', maxCount: 10 }]),
@@ -47,24 +48,24 @@ router.get('/properties/search', propertyController.searchAndFilterProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
 router.get('/properties', propertyController.getAllProperties);
 router.patch(
-  '/properties/:id', // CORRECTED: Removed '.'
+  '/properties/:id', 
   authMiddleware,
   roleMiddleware('owner', 'admin'),
   upload.fields([{ name: 'photos', maxCount: 10 }]),
   bodyParserMiddleware,
   propertyController.updateProperty
 );
-router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.deleteProperty); // CORRECTED: Removed '.'
+router.delete('/properties/:id', authMiddleware, roleMiddleware('owner', 'admin'), propertyController.deleteProperty); 
 router.post('/properties/upload-photo', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
 
 
 // -------------------- Listing Routes --------------------
-router.post('/listings', authMiddleware, roleMiddleware('owner', 'admin'), listingController.createListing); // Requires authentication and specific role
-router.get('/listings/search', listingController.searchListings); // ADDED: Search route for listings
-router.get('/listings', listingController.getAllListings); // Public route
-router.get('/listings/:id', listingController.getListingById); // Public route
-router.patch('/listings/:id', authMiddleware, listingController.updateListing); // Requires authentication for the specific lister
-router.delete('/listings/:id', authMiddleware, listingController.deleteListing); // Requires authentication for the specific lister
+router.post('/listings', authMiddleware, roleMiddleware('owner', 'admin'), listingController.createListing); 
+router.get('/listings/search', listingController.searchListings); 
+router.get('/listings', listingController.getAllListings); 
+router.get('/listings/:id', listingController.getListingById); 
+router.patch('/listings/:id', authMiddleware, listingController.updateListing); 
+router.delete('/listings/:id', authMiddleware, listingController.deleteListing); 
 
 
 // -------------------- Appointment Routes --------------------
@@ -76,16 +77,14 @@ router.get('/appointments/:id', authMiddleware, appointmentController.getAppoint
 
 // -------------------- Payment Routes --------------------
 router.post('/payments', authMiddleware, roleMiddleware('owner', 'admin'), paymentController.createPayment);
-// CRITICAL FIX: Agents should also be able to view payments.
 router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('tenant', 'owner', 'admin', 'agent'), paymentController.getPaymentsByLease);
-// CRITICAL FIX: A tenant should NOT be able to update a payment status.
 router.put('/payments/:id/status', authMiddleware, roleMiddleware('owner', 'admin', 'agent'), paymentController.updatePaymentStatus);
 
 
 // -------------------- Employee Routes --------------------
 router.post('/employees', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.createEmployee);
-router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getAllEmployees); // UPDATED: Added manager role
-router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getEmployeeById); // UPDATED: Added manager role
+router.get('/employees', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getAllEmployees); 
+router.get('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin', 'manager'), employeeController.getEmployeeById); 
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('owner', 'admin'), employeeController.deleteEmployee);
 

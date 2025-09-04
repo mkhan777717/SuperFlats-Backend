@@ -31,7 +31,7 @@ exports.register = async (req, res) => {
             logger.warn(`Registration failed: User with email '${email}' already exists.`);
             return res.status(409).json({ message: `A user with this email already exists.` });
         }
-        
+
         // Hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -185,19 +185,21 @@ exports.updateProfile = async (req, res) => {
                 return res.status(409).json({ message: 'This email is already in use.' });
             }
         }
-        
+
         user.name = name || user.name;
         user.email = email || user.email;
 
         await user.save();
 
         logger.info(`User profile updated for user ${user.id}.`);
-        res.status(200).json({ message: 'Profile updated successfully.', user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-        }});
+        res.status(200).json({
+            message: 'Profile updated successfully.', user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+            }
+        });
 
     } catch (error) {
         logger.error(`Error updating profile for user ${req.user.id}:`, error);
@@ -231,5 +233,37 @@ exports.removeProfileImage = async (req, res) => {
     } catch (error) {
         logger.error(`Error removing profile image for user ${req.user.id}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+exports.updatePassword = async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user.id; // User ID from the authenticated token
+
+    try {
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ error: 'Both oldPassword and newPassword are required.' });
+        }
+
+        // Use the correct Sequelize method: findByPk
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Invalid old password.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        await user.save();
+
+        logger.info(`Password updated successfully for user ${userId}.`);
+        res.json({ message: 'Password updated successfully.' });
+
+    } catch (err) {
+        logger.error(`Error updating password for user ${userId}:`, err);
+        res.status(500).json({ error: 'Server Error' });
     }
 };
