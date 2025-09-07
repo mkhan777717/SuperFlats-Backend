@@ -17,7 +17,7 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        isIn: [['agent', 'manager', 'admin']],
+        isIn: [['agent', 'admin']],
       },
     },
     joined_at: {

@@ -35,11 +35,11 @@ exports.createEmployee = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 1. Create the new user with the generic 'employee' role
+    // 1. Create the new user with the given role
     const newUser = await User.create({
       name,
       email,
-      role: 'employee',
+      role: role,
       password: hashedPassword,
     }, { transaction });
 
@@ -127,7 +127,7 @@ exports.updateEmployeeRole = async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
 
-    const allowedRoles = ['agent', 'manager', 'admin'];
+    const allowedRoles = ['agent','admin'];
     if (!allowedRoles.includes(role)) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Invalid employee role.' });
@@ -142,11 +142,6 @@ exports.updateEmployeeRole = async (req, res) => {
     employee.role = role;
     await employee.save({ transaction });
 
-    const user = await User.findByPk(employee.user_id, { transaction });
-    if (user) {
-      user.role = 'employee';
-      await user.save({ transaction });
-    }
 
     await transaction.commit();
     logger.info(`Employee ID ${id} role updated to: ${role}`);
