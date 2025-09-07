@@ -19,6 +19,14 @@ exports.createListing = async (req, res) => {
             return res.status(404).json({ message: 'Property not found or you are not the owner.' });
         }
 
+        // --- NEW VALIDATION ---
+        // Check if a listing for this property already exists
+        const existingListing = await Listing.findOne({ where: { property_id } });
+        if (existingListing) {
+            return res.status(409).json({ message: 'A listing for this property already exists.' });
+        }
+        // --- END OF NEW VALIDATION ---
+
         const newListing = await Listing.create({
             property_id,
             lister_id: listerId,
@@ -175,6 +183,21 @@ exports.updateListing = async (req, res) => {
             return res.status(403).json({ message: 'Forbidden: You do not have permission to update this listing.' });
         }
 
+        // --- NEW VALIDATION ---
+        // If property_id is being updated, check for duplicates
+        if (req.body.property_id && req.body.property_id !== listing.property_id) {
+            const existingListing = await Listing.findOne({
+                where: {
+                    property_id: req.body.property_id,
+                    id: { [Op.ne]: id } // Exclude the current listing
+                }
+            });
+            if (existingListing) {
+                return res.status(409).json({ message: 'A listing for this property already exists.' });
+            }
+        }
+        // --- END OF NEW VALIDATION ---
+        
         await listing.update(req.body);
 
         logger.info(`Listing ${id} updated by user ${listerId}`);
