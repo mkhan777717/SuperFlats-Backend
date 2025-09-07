@@ -52,6 +52,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: null,
     },
+    isManaged: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
   }, {
     tableName: 'properties',
     timestamps: true,
