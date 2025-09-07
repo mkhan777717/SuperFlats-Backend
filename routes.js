@@ -11,7 +11,8 @@ const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
 const listingController = require('./controllers/listingController');
 const leaseController = require('./controllers/leaseController');
-const userController = require('./controllers/userController'); // New user controller
+const userController = require('./controllers/userController');
+const tenantController = require('./controllers/tenantController'); // New tenant controller
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -26,7 +27,7 @@ router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
 
 // -------------------- User Routes --------------------
-// All user profile management routes moved to a dedicated section
+// Routes for managing the currently authenticated user's profile
 router.get('/user/me', authMiddleware, userController.getProfile);
 router.post(
   '/user/upload-profile-image',
@@ -56,27 +57,24 @@ router.patch(
 );
 router.delete('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.deleteProperty);
 router.post('/properties/upload-photo/:id', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
-// Delete a single photo from a property
 router.delete(
   '/properties/:propertyId/photos/:photoId',
   authMiddleware,
   roleMiddleware('admin', 'agent'),
   propertyController.deletePhoto
 );
+
 // -------------------- Listing Routes --------------------
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
 router.get('/listings/search', listingController.searchListings);
 router.get('/listings', listingController.getAllListings);
 router.get('/listings/:id', listingController.getListingById);
-// IMPROVED: Added role middleware for explicit security
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
-// IMPROVED: Added role middleware for explicit security
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
 
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client', 'admin'), appointmentController.createAppointment);
-// IMPROVED: Simplified middleware. Controller handles the user-specific check.
 router.get('/appointments/me', authMiddleware, appointmentController.getUserAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 'agent', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
@@ -106,11 +104,18 @@ router.delete('/grouped-listings/:id', authMiddleware, roleMiddleware('admin'), 
 
 // -------------------- Lease Routes --------------------
 router.post('/leases', authMiddleware, roleMiddleware('admin'), leaseController.createLease);
-router.get('/leases', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.getAllLeases);
-router.get('/leases/me', authMiddleware, roleMiddleware('client'), leaseController.getLeasesByTenant);
-router.get('/leases/:id', authMiddleware, roleMiddleware('client', 'admin', 'agent'), leaseController.getLeaseById);
+
+router.get('/leases', authMiddleware, roleMiddleware('admin'), leaseController.getAllLeases);
+router.get('/leases/:id', authMiddleware, roleMiddleware( 'admin'), leaseController.getLeaseById);
 router.put('/leases/:id', authMiddleware, roleMiddleware('admin'), leaseController.updateLease);
 router.delete('/leases/:id', authMiddleware, roleMiddleware('admin'), leaseController.deleteLease);
+
+// -------------------- Tenant Routes --------------------
+router.post('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.createTenant);
+router.get('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.getAllTenants);
+router.get('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.getTenantById);
+router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.updateTenantProfile);
+router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.deleteTenant);
 
 
 module.exports = router;

@@ -88,6 +88,25 @@ const updateGroupedListingSchema = Joi.object({
   listing_ids: Joi.array().items(Joi.number().integer()).optional(),
 });
 
+// Joi schema for validating a new lease creation request
+const createLeaseSchema = Joi.object({
+  listing_id: Joi.number().integer().positive().required(),
+  tenant_id: Joi.number().integer().positive().required(),
+  start_date: Joi.date().iso().required(),
+  end_date: Joi.date().iso().greater(Joi.ref('start_date')).required(),
+  rent_amount: Joi.number().precision(2).positive().required(),
+  security_deposit: Joi.number().precision(2).positive().required(),
+});
+
+// Joi schema for validating a lease update request
+const updateLeaseSchema = Joi.object({
+  start_date: Joi.date().iso().optional(),
+  end_date: Joi.date().iso().greater(Joi.ref('start_date')).optional(),
+  rent_amount: Joi.number().precision(2).positive().optional(),
+  security_deposit: Joi.number().precision(2).positive().optional(),
+  status: Joi.string().valid('active', 'inactive', 'cancelled').optional(),
+});
+
 module.exports = {
   userRegistrationSchema,
   createPropertySchema,
@@ -99,4 +118,6 @@ module.exports = {
   updateGroupedListingSchema,
   createTenantSchema,
   updateTenantSchema,
+  createLeaseSchema,
+  updateLeaseSchema
 };
