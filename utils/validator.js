@@ -5,10 +5,11 @@ const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  role: Joi.string().valid('tenant', 'owner', 'employee').required(),
+  role: Joi.string().valid('client', 'admin', 'agent').required(),
 });
 
 // Joi schema for creating a new property
+
 const createPropertySchema = Joi.object({
   title: Joi.string().min(5).required(),
   description: Joi.string().min(20).required(),
@@ -23,9 +24,11 @@ const createPropertySchema = Joi.object({
     area_sqft: Joi.number().positive(),
     furnishing: Joi.string().valid('furnished', 'semi-furnished', 'unfurnished'),
     parking: Joi.boolean(),
-    amenities: Joi.string().allow(''), // Allow an empty string for amenities
+    amenities: Joi.string().allow(''),
   }).optional(),
+  isManaged: Joi.boolean()
 });
+
 
 // Joi schema for creating a new listing
 const createListingSchema = Joi.object({
@@ -49,7 +52,7 @@ const employeeCreationSchema = Joi.object({
 
 // Joi schema for updating an employee's role
 const updateEmployeeRoleSchema = Joi.object({
-  role: Joi.string().valid('agent', 'manager', 'admin').required(),
+  role: Joi.string().valid('agent', 'admin').required(),
 });
 
 // Joi schema for creating a new appointment
