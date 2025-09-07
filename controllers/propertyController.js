@@ -8,9 +8,16 @@ const PropertyFeature = db.PropertyFeature;
 const PropertyPhoto = db.PropertyPhoto;
 const User = db.User;
 const axios = require('axios');
-const Listing = db.Listing; // ADDED: Import the Listing model
+const Listing = db.Listing;
 
-// Helper function to get Lat/Long from an address using a geocoding service
+/**
+ * Helper function to get latitude and longitude from an address using a geocoding service.
+ * @param {string} address - The street address.
+ * @param {string} city - The city.
+ * @param {string} state - The state.
+ * @param {string} zipcode - The postal code.
+ * @returns {Promise<{latitude: number|null, longitude: number|null}>} The coordinates.
+ */
 const getLatLongFromAddress = async (address, city, state, zipcode) => {
   const fullAddress = `${address}, ${city}, ${state} ${zipcode}`;
   try {
@@ -21,7 +28,8 @@ const getLatLongFromAddress = async (address, city, state, zipcode) => {
         limit: 1,
       },
       headers: {
-        'User-Agent': 'SuperFlatsApp/1.0 (contact@example.com)' // Required by Nominatim
+        // A user-agent header is required by Nominatim's terms of service.
+        'User-Agent': 'SuperFlatsApp/1.0 (contact@example.com)'
       }
     });
 
@@ -35,11 +43,15 @@ const getLatLongFromAddress = async (address, city, state, zipcode) => {
   return { latitude: null, longitude: null };
 };
 
-// Create a new property
+/**
+ * Creates a new property, its features, and photos in a single transaction.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
 exports.createProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
-    // Validate request body
+    // Validate request body against a Joi schema
     const { error } = createPropertySchema.validate(req.body);
     if (error) {
       await transaction.rollback();
@@ -47,22 +59,16 @@ exports.createProperty = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Ensure at least one photo is uploaded
-    const photos = req.files?.photos;
-    if (!photos || photos.length === 0) {
-      await transaction.rollback();
-      logger.warn('No photos provided for property creation.');
-      return res.status(400).json({ message: 'At least one photo is required.' });
-    }
 
     // Get the owner_id securely from the authenticated user's token
     const owner_id = req.user.id;
-    const { title, description, property_type, address, city, state, zipcode, features } = req.body;
+    // UPDATED: Destructure the isManaged field from the request body.
+    const { title, description, property_type, address, city, state, zipcode, features, isManaged } = req.body;
 
     // Get latitude and longitude from the address
     const { latitude, longitude } = await getLatLongFromAddress(address, city, state, zipcode);
 
-    // STEP 1: Create the property within the transaction
+    // Step 1: Create the property within the transaction
     const newProperty = await Property.create({
       owner_id,
       title,
@@ -74,9 +80,11 @@ exports.createProperty = async (req, res) => {
       zipcode,
       latitude,
       longitude,
+      // Pass the isManaged value if it exists, otherwise Sequelize will use the default 'false'.
+      isManaged,
     }, { transaction });
 
-    // Create associated features
+    // Step 2: Create associated features within the same transaction
     if (features) {
       await PropertyFeature.create({
         property_id: newProperty.id,
@@ -84,21 +92,9 @@ exports.createProperty = async (req, res) => {
       }, { transaction });
     }
 
-    // STEP 2: Upload all photos and create database records
-    const propertyPhotos = [];
-    for (let i = 0; i < photos.length; i++) {
-      const photoFile = photos[i];
-      const photoUrl = await uploadFile(photoFile);
-      propertyPhotos.push({
-        property_id: newProperty.id,
-        photo_url: photoUrl,
-        is_primary: i === 0, // Set the first photo as primary
-      });
-    }
 
-    await PropertyPhoto.bulkCreate(propertyPhotos, { transaction });
 
-    // STEP 3: Commit the transaction
+    // Step 3: Commit the transaction
     await transaction.commit();
     logger.info(`New property created with ID: ${newProperty.id} by user ID: ${owner_id}`);
     res.status(201).json({ message: 'Property created successfully.', property: newProperty });
@@ -113,7 +109,11 @@ exports.createProperty = async (req, res) => {
   }
 };
 
-// Helper function to build dynamic queries
+/**
+ * Helper function to build dynamic query conditions based on request query parameters.
+ * @param {object} query - The request query object.
+ * @returns {{conditions: object, featureConditions: object}} The generated Sequelize conditions.
+ */
 const buildQueryConditions = (query) => {
   const conditions = {};
   const featureConditions = {};
@@ -131,23 +131,33 @@ const buildQueryConditions = (query) => {
   if (query.type) {
     conditions.property_type = { [Op.like]: `%${query.type}%` };
   }
+  if (query.isManaged !== undefined) {
+    // Ensure the string 'true' or 'false' is converted to a boolean value.
+    const isManagedValue = JSON.parse(query.isManaged.toLowerCase());
+    conditions.isManaged = isManagedValue;
+  }
+
+  // UPDATED: Add fuzzy search logic using SOUNDEX
   if (query.search) {
     conditions[Op.or] = [
+      // Standard case-insensitive substring search
       { title: { [Op.like]: `%${query.search}%` } },
       { description: { [Op.like]: `%${query.search}%` } },
+      // Fuzzy search using the SOUNDEX function
+      literal(`SOUNDEX(title) = SOUNDEX('${query.search}')`),
+      literal(`SOUNDEX(description) = SOUNDEX('${query.search}')`),
     ];
   }
 
-  // Handle proximity search with latitude, longitude, and radius
+  // Handle proximity search using latitude, longitude, and radius
   if (query.latitude && query.longitude && query.radius) {
     const lat = parseFloat(query.latitude);
     const lon = parseFloat(query.longitude);
     const radius = parseFloat(query.radius);
-    const earthRadiusMiles = 3959; // Radius of the earth in miles
-    const earthRadiusKm = 6371; // Radius of the earth in kilometers
+    const earthRadiusMiles = 3959;
 
-    // Use a literal to perform the Haversine formula calculation in SQL
-    // This is much more efficient than fetching all properties and filtering in code
+    // Use a literal to perform the Haversine formula calculation in SQL.
+    // This is more efficient than fetching all properties and filtering in application code.
     conditions[Op.and] = conditions[Op.and] || [];
     conditions[Op.and].push(literal(`
       ${earthRadiusMiles} * acos(
@@ -167,27 +177,33 @@ const buildQueryConditions = (query) => {
   return { conditions, featureConditions };
 };
 
-// Get all properties with filtering, sorting, and searching capabilities
+/**
+ * Searches and filters properties with advanced options, including
+ * sorting by distance, price, and other attributes.
+ * @param {object} req - The request object with query parameters.
+ * @param {object} res - The response object.
+ */
 exports.searchAndFilterProperties = async (req, res) => {
   try {
     const { conditions, featureConditions } = buildQueryConditions(req.query);
     const order = [];
     const attributes = { include: [] };
 
-    // --- Sorting Options ---
-    // The `sort_by` query parameter determines how the results are ordered.
-    // The `sort_order` can be `ASC` (default) or `DESC`.
+    // Set a default limit and offset for pagination
+    const limit = req.query.limit ? parseInt(req.query.limit) : 20;
+    const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+
+    // An array to conditionally include the listings model
     const includeListings = [];
 
-    // Option 1: Sort by distance from a given point.
-    // This is a special sorting option that uses the Haversine formula.
-    // It requires `latitude`, `longitude`, and `radius` to be present in the query.
-    // `sort_by=distance`
+    // --- Dynamic Sorting Logic ---
     const lat = req.query.latitude;
     const lon = req.query.longitude;
+
     if (req.query.sort_by === 'distance' && lat && lon) {
+      // Option 1: Sort by distance from a specified point.
       const earthRadiusMiles = 3959;
-      // Add the distance calculation as a selected attribute. The result is aliased as `distance_miles`.
+      // Add a calculated 'distance_miles' attribute to the select statement.
       attributes.include.push([
         literal(`${earthRadiusMiles} * acos(
           cos(radians(${lat})) * cos(radians(latitude)) * cos(radians(longitude) - radians(${lon})) +
@@ -195,33 +211,28 @@ exports.searchAndFilterProperties = async (req, res) => {
         )`),
         'distance_miles',
       ]);
-      // Use the newly created `distance_miles` attribute for sorting.
+      // Sort the results using the calculated distance.
       order.push([literal('distance_miles'), req.query.sort_order || 'ASC']);
     } else if (req.query.sort_by === 'price') {
-      // Logic to handle sorting by price from the Listing model
+      // Option 2: Sort by price from the Listing model.
       order.push([{ model: Listing, as: 'listings' }, 'price', req.query.sort_order || 'DESC']);
-      // Add the listings model to the include array to make the join
+      // A necessary inner join to make sure we only sort by listings that exist.
       includeListings.push({
         model: Listing,
         as: 'listings',
         attributes: ['price'],
-        required: true, // This makes it an INNER JOIN, ensuring we only get properties with listings
+        required: true,
       });
     } else {
-      // Option 2 (Default): Sort by any other column, such as `created_at`.
-      // `sort_by=created_at`
-      // You can also use other columns like `title`, `property_type`, etc.
+      // Option 3 (Default): Sort by a standard property attribute.
       order.push([req.query.sort_by || 'created_at', req.query.sort_order || 'DESC']);
     }
-
-    const limit = req.query.limit ? parseInt(req.query.limit) : 20;
-    const offset = req.query.offset ? parseInt(req.query.offset) : 0;
 
     const properties = await Property.findAll({
       where: conditions,
       attributes,
       include: [
-        ...includeListings, // Include the listings model if sorting by price
+        ...includeListings, // Include listings if sorting by price
         {
           model: PropertyFeature,
           as: 'features',
@@ -234,7 +245,9 @@ exports.searchAndFilterProperties = async (req, res) => {
       order,
       limit,
       offset,
-      subQuery: false, // ADDED: Prevents Sequelize from creating a nested subquery for the ORDER BY clause
+      // Prevents Sequelize from creating a nested subquery for the ORDER BY clause,
+      // which can cause issues with joined tables.
+      subQuery: false,
     });
 
     if (properties.length === 0) {
@@ -248,7 +261,11 @@ exports.searchAndFilterProperties = async (req, res) => {
   }
 };
 
-// Get a single property by ID with all its details
+/**
+ * Retrieves a single property by its ID, including all related details.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -275,7 +292,11 @@ exports.getPropertyById = async (req, res) => {
   }
 };
 
-// Get all properties (simple version, for backward compatibility)
+/**
+ * Retrieves all properties (simple version, for backward compatibility).
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
 exports.getAllProperties = async (req, res) => {
   try {
     const properties = await Property.findAll({
@@ -294,14 +315,17 @@ exports.getAllProperties = async (req, res) => {
   }
 };
 
-// Update a property
+/**
+ * Updates an existing property, including its features , in a single transaction.
+ * Requires user admin role.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
 exports.updateProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
-
     const { features, ...propertyData } = req.body;
-    const newPhotos = req.files?.photos;
 
     const property = await Property.findByPk(id, { transaction });
     if (!property) {
@@ -310,14 +334,14 @@ exports.updateProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Check ownership
+    // Check ownership: ensure the authenticated user owns this property .
     if (property.owner_id !== req.user.id && req.user.role !== 'admin') {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to update property ID ${id} by user ID ${req.user.id}.`);
       return res.status(403).json({ message: 'You are not authorized to update this property.' });
     }
 
-    // Get latitude and longitude from the address if it's being updated
+    // Update latitude and longitude if the address fields have changed.
     if (propertyData.address || propertyData.city || propertyData.state || propertyData.zipcode) {
       const { latitude, longitude } = await getLatLongFromAddress(
         propertyData.address || property.address,
@@ -341,39 +365,77 @@ exports.updateProperty = async (req, res) => {
       }
     }
 
-    // Handle photo updates only if new photos are provided
-    if (newPhotos && newPhotos.length > 0) {
-      // Find existing photos and delete them from both Firebase and the database
-      const existingPhotos = await PropertyPhoto.findAll({ where: { property_id: id }, transaction });
-      await Promise.all(existingPhotos.map(photo => deleteFile(photo.photo_url, 'photo')));
-      await PropertyPhoto.destroy({ where: { property_id: id }, transaction });
-
-      // Upload and save the new photos
-      const propertyPhotos = [];
-      for (let i = 0; i < newPhotos.length; i++) {
-        const photoFile = newPhotos[i];
-        const photoUrl = await uploadFile(photoFile);
-        propertyPhotos.push({
-          property_id: id,
-          photo_url: photoUrl,
-          is_primary: i === 0, // Set the first photo as primary
-        });
-      }
-      await PropertyPhoto.bulkCreate(propertyPhotos, { transaction });
-    }
-
     await transaction.commit();
-    logger.info(`Property with ID ${id} updated successfully.`);
+    logger.info(`Property with ID ${id} updated successfully by user ID ${req.user.id}.`);
     res.status(200).json({ message: 'Property updated successfully.', property });
 
   } catch (error) {
-    await transaction.rollback();
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
     logger.error(`Error updating property with ID ${req.params.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
-// Delete a property
+/**
+ * Deletes a single photo from a property by its ID.
+ * @param {object} req - The request object containing the photo ID in params.
+ * @param {object} res - The response object.
+ */
+exports.deletePhoto = async (req, res) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    const { photoId } = req.params;
+
+    if (!photoId) {
+      await transaction.rollback();
+      logger.warn('Photo ID is required for deletion.');
+      return res.status(400).json({ message: 'Photo ID is required.' });
+    }
+
+    const photo = await PropertyPhoto.findByPk(photoId, {
+      include: [{ model: Property, as: 'property' }],
+      transaction
+    });
+
+    if (!photo) {
+      await transaction.rollback();
+      logger.warn(`Photo with ID ${photoId} not found.`);
+      return res.status(404).json({ message: 'Photo not found.' });
+    }
+
+    // Security check: only the owner can delete a photo from their property.
+    if (photo.property.owner_id !== req.user.id && req.user.role !== 'admin') {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to delete photo ID ${photoId} from property ID ${photo.property.id} by user ID ${req.user.id}.`);
+      return res.status(403).json({ message: 'You are not authorized to delete this photo.' });
+    }
+
+    // Delete the photo from the file storage service.
+    await deleteFile(photo.photo_url, 'photo');
+    // Delete the photo record from the database.
+    await photo.destroy({ transaction });
+
+    await transaction.commit();
+    logger.info(`Photo with ID ${photoId} deleted successfully by user ID ${req.user.id}.`);
+    res.status(200).json({ message: 'Photo deleted successfully.' });
+
+  } catch (error) {
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
+    logger.error(`Error deleting photo with ID ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+/**
+ * Deletes a property and all its associated data (features, photos, listings) in a single transaction.
+ * Requires user ownership or admin role.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
 exports.deleteProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
@@ -386,7 +448,7 @@ exports.deleteProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Check ownership
+    // Check ownership: ensure the authenticated user owns this property or is an admin.
     if (property.owner_id !== req.user.id && req.user.role !== 'admin') {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to delete property ID ${id} by user ID ${req.user.id}.`);
@@ -402,10 +464,11 @@ exports.deleteProperty = async (req, res) => {
     await PropertyPhoto.destroy({ where: { property_id: id }, transaction });
     await db.Listing.destroy({ where: { property_id: id }, transaction });
 
+    // Finally, delete the property itself
     await property.destroy({ transaction });
 
     await transaction.commit();
-    logger.info(`Property with ID ${id} deleted successfully.`);
+    logger.info(`Property with ID ${id} deleted successfully by user ID ${req.user.id}.`);
     res.status(200).json({ message: 'Property and its associated data deleted successfully.' });
 
   } catch (error) {
@@ -417,18 +480,73 @@ exports.deleteProperty = async (req, res) => {
   }
 };
 
-// Handles the file upload and returns the URL
+/**
+ * Handles the upload of a single photo and links it to a property.
+ * @param {object} req - The request object.
+ * @param {string} req.params.id - The ID of the property to link the photo to.
+ * @param {object} res - The response object.
+ */
 exports.uploadPhoto = async (req, res) => {
+  const transaction = await db.sequelize.transaction();
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded.' });
+    const propertyId = req.params.id;
+
+    if (!propertyId) {
+      await transaction.rollback();
+      logger.warn('Property ID is required for photo upload.');
+      return res.status(400).json({ message: 'Property ID is required.' });
     }
 
+    if (!req.file) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'No file uploaded.' });
+    }
+    
+    // Step 1: Check the current photo count for the property
+    const photoCount = await PropertyPhoto.count({
+      where: { property_id: propertyId },
+      transaction,
+    });
+
+    if (photoCount >= 10) {
+      await transaction.rollback();
+      logger.warn(`Attempt to upload more than 10 photos for property ID ${propertyId}.`);
+      return res.status(400).json({ message: 'Maximum of 10 photos allowed per property.' });
+    }
+
+    // Find the property to ensure it exists and to check ownership
+    const property = await Property.findByPk(propertyId, { transaction });
+    if (!property) {
+      await transaction.rollback();
+      logger.warn(`Property with ID ${propertyId} not found.`);
+      return res.status(404).json({ message: 'Property not found.' });
+    }
+
+    // Security check: only the owner can add a photo to their property.
+    if (property.owner_id !== req.user.id && req.user.role !== 'admin') {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to add a photo to property ID ${propertyId} by user ID ${req.user.id}.`);
+      return res.status(403).json({ message: 'You are not authorized to add photos to this property.' });
+    }
+
+    // Upload the file to the storage service.
     const photoUrl = await uploadFile(req.file);
 
-    res.status(201).json({ message: 'Image uploaded successfully.', photo_url: photoUrl });
+    // Create a database record for the new photo.
+    const newPhoto = await PropertyPhoto.create({
+      property_id: propertyId,
+      photo_url: photoUrl,
+      is_primary: false, // You might have logic to set this later.
+    }, { transaction });
+
+    await transaction.commit();
+    logger.info(`Photo uploaded and linked to property ID ${propertyId} by user ID ${req.user.id}.`);
+    res.status(201).json({ message: 'Photo uploaded successfully.', photo: newPhoto });
 
   } catch (error) {
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
     logger.error('Error uploading image:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
