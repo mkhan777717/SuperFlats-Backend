@@ -7,7 +7,6 @@ module.exports = (sequelize) => {
             primaryKey: true,
             autoIncrement: true,
         },
-
         name: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -28,7 +27,7 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: false,
             validate: {
-                isIn: [['tenant', 'owner', 'employee']],
+                isIn: [['admin', 'agent', 'client']],
             },
         },
         profile_image: {
@@ -50,30 +49,17 @@ module.exports = (sequelize) => {
             foreignKey: 'owner_id',
             as: 'properties',
         });
-
-        User.hasMany(models.Listing, {
-            foreignKey: 'lister_id',
-            as: 'listings',
-        });
-
-        User.hasMany(models.Appointment, {
-            foreignKey: 'user_id',
-            as: 'appointments',
-        });
-
         User.hasMany(models.Lease, {
-            foreignKey: 'tenant_id',
+            foreignKey: 'client_id', 
             as: 'leases',
         });
-
         User.hasMany(models.Payment, {
             foreignKey: 'payer_id',
             as: 'payments',
         });
-
-        User.hasOne(models.Employee, {
+        User.hasMany(models.Appointment, {
             foreignKey: 'user_id',
-            as: 'employee',
+            as: 'appointments',
         });
     };
 
