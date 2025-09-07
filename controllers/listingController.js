@@ -178,7 +178,7 @@ exports.updateListing = async (req, res) => {
         }
 
         // Check if the authenticated user is the lister or an admin
-        const isAuthorized = listing.lister_id === listerId || req.user.role === 'admin';
+        const isAuthorized = listing.lister_id === listerId ;
         if (!isAuthorized) {
             return res.status(403).json({ message: 'Forbidden: You do not have permission to update this listing.' });
         }
@@ -220,7 +220,7 @@ exports.deleteListing = async (req, res) => {
         }
 
         // Check if the authenticated user is the lister or an admin
-        const isAuthorized = listing.lister_id === listerId || req.user.role === 'admin';
+        const isAuthorized = listing.lister_id === listerId ;
         if (!isAuthorized) {
             return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this listing.' });
         }
