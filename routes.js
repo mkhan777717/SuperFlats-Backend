@@ -16,7 +16,6 @@ const userController = require('./controllers/userController'); // New user cont
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
 const roleMiddleware = require('./middlewares/roleMiddleware');
-const bodyParserMiddleware = require('./utils/bodyParserMiddleware');
 
 // Set up multer for file storage
 const storage = multer.memoryStorage();
@@ -44,7 +43,6 @@ router.post(
   '/properties',
   authMiddleware,
   roleMiddleware('admin', 'agent'),
-  bodyParserMiddleware,
   propertyController.createProperty
 );
 router.get('/properties/search', propertyController.searchAndFilterProperties);
@@ -54,8 +52,6 @@ router.patch(
   '/properties/:id',
   authMiddleware,
   roleMiddleware('admin'),
-  upload.fields([{ name: 'photos', maxCount: 10 }]),
-  bodyParserMiddleware,
   propertyController.updateProperty
 );
 router.delete('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.deleteProperty);
