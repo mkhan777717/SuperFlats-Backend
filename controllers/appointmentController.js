@@ -1,9 +1,9 @@
 const db = require('../models');
 const logger = require('../utils/logger');
-const { Op } = require('sequelize'); // Import Op for comparison operators
+const { Op } = require('sequelize');
 const Appointment = db.Appointment;
 const Listing = db.Listing;
-const Property = db.Property; // We'll need this to check property ownership
+const Property = db.Property;
 const User = db.User;
 
 // Create a new appointment
@@ -112,7 +112,6 @@ exports.updateAppointmentStatus = async (req, res) => {
     }
 
     const isOwner = appointment.listing.property.owner_id === userId;
-    console.log(userId);
     const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
 
     if (!isOwner && !isAdminOrAgent) {
