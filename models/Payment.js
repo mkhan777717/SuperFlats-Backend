@@ -10,19 +10,22 @@ module.exports = (sequelize, DataTypes) => {
     lease_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'leases',
+        key: 'id',
+      },
     },
     payer_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'tenants', // Payer is now a Tenant, not a User
+        key: 'id',
+      },
     },
     amount: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
-    },
-    currency: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: 'USD',
     },
     payment_date: {
       type: DataTypes.DATE,
@@ -40,7 +43,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'pending',
       validate: {
-        isIn: [['pending', 'completed', 'failed']],
+        isIn: [['pending', 'paid']],
       },
     },
   }, {
@@ -55,8 +58,8 @@ module.exports = (sequelize, DataTypes) => {
       as: 'lease',
     });
 
-    // A payment is made by a user (the payer).
-    Payment.belongsTo(models.User, {
+    // A payment is made by a tenant (the payer).
+    Payment.belongsTo(models.Tenant, {
       foreignKey: 'payer_id',
       as: 'payer',
     });

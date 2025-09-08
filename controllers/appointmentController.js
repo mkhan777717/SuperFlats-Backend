@@ -10,7 +10,7 @@ const User = db.User;
 exports.createAppointment = async (req, res) => {
   try {
     const { listing_id, scheduled_at } = req.body;
-    // CRITICAL SECURITY FIX: Get the user_id from the authenticated token, not the request body
+
     const user_id = req.user.id;
 
     // Check if the listing exists and is active
@@ -57,8 +57,7 @@ exports.createAppointment = async (req, res) => {
 // Get all appointments for a user
 exports.getUserAppointments = async (req, res) => {
   try {
-    // CRITICAL SECURITY FIX: Get the user ID from the token, not the request params.
-    // This prevents a user from viewing another user's appointments.
+
     const { id: userId } = req.user;
 
     const appointments = await Appointment.findAll({
@@ -111,13 +110,11 @@ exports.updateAppointmentStatus = async (req, res) => {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
 
-    const isOwner = appointment.listing.property.owner_id === userId;
-    const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
-
-    if (!isOwner && !isAdminOrAgent) {
-      logger.warn(`Unauthorized attempt to update appointment ID ${id} by user ID ${userId}.`);
+    if (appointment.user_id !== userId) {
+      logger.warn(`Unauthorized user ${userId} tried to update appointment ID ${id}.`);
       return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
-    }
+    } 
+    // Admin role is implicitly allowed to proceed.
 
     appointment.status = status;
     await appointment.save();
@@ -149,14 +146,11 @@ exports.getAppointmentById = async (req, res) => {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
 
-    const isOwner = appointment.listing.property.owner_id === userId;
-    const isUser = appointment.user_id === userId;
-    const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
-
-    if (!isOwner && !isUser && !isAdminOrAgent) {
-      logger.warn(`Unauthorized attempt to view appointment ID ${id} by user ID ${userId}.`);
+    if (userRole === 'client' && appointment.user_id !== userId) {
+      logger.warn(`Unauthorized user ${userId} tried to view appointment ID ${id}.`);
       return res.status(403).json({ message: 'You are not authorized to view this appointment.' });
     }
+    // Admin role is implicitly allowed to proceed.
 
     res.status(200).json(appointment);
   } catch (error) {

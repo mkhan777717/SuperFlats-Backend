@@ -4,12 +4,13 @@ const Lease = db.Lease;
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
-const Tenant = db.Tenant; // Correctly referencing the Tenant model
+const Tenant = db.Tenant;
+const Ledger = db.Ledger;
 const { Op } = require('sequelize');
 const { createLeaseSchema, updateLeaseSchema } = require('../utils/validator');
 
 /**
- * Creates a new lease record.
+ * Creates a new lease record and updates the tenant's ledger.
  * This is an administrative action handled by admins and property owners.
  * @param {object} req - The request object.
  * @param {object} res - The response object.
@@ -17,11 +18,10 @@ const { createLeaseSchema, updateLeaseSchema } = require('../utils/validator');
 exports.createLease = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
-    const { id: userId, role: userRole } = req.user;
+    const { id: userId } = req.user;
     const { listing_id, tenant_id, start_date, end_date, rent_amount, security_deposit } = req.body;
 
-    // Validate the request body
-    const { error, value } = createLeaseSchema.validate(req.body);
+    const { error } = createLeaseSchema.validate(req.body);
     if (error) {
       await transaction.rollback();
       logger.warn(`Validation failed during lease creation: ${error.details[0].message}`);
@@ -37,13 +37,8 @@ exports.createLease = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Listing not found.' });
     }
-    
-    // CRITICAL SECURITY FIX: Check if the user is the owner of the property
-    if (userRole !== 'admin' && listing.property.owner_id !== userId) {
-      await transaction.rollback();
-      logger.warn(`Unauthorized attempt to create lease for listing ${listing_id} by user ID ${userId}.`);
-      return res.status(403).json({ message: 'You are not authorized to create a lease for this property.' });
-    }
+
+
 
     // Additional validation
     if (listing.status === 'closed') {
@@ -51,23 +46,36 @@ exports.createLease = async (req, res) => {
       return res.status(400).json({ message: 'This listing is already leased and cannot be leased again.' });
     }
 
-    // Find the tenant record, no longer checking if it's a 'User'
     const tenant = await Tenant.findByPk(tenant_id);
     if (!tenant) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Tenant record not found.' });
     }
 
-    // FIX: Include the listing_id in the object being created
     const newLease = await Lease.create({
       property_id: listing.property.id,
-      listing_id: listing.id, // This is the crucial line you were missing
+      listing_id: listing.id,
       tenant_id,
       start_date,
       end_date,
       monthly_rent: rent_amount,
-      deposit: security_deposit, // Corrected to use the security_deposit field
+      deposit: security_deposit,
       status: 'active',
+    }, { transaction });
+
+    const [ledger, created] = await Ledger.findOrCreate({
+      where: { tenant_id },
+      defaults: {
+        tenant_id,
+        balance: 0.00,
+        deposit: 0.00
+      },
+      transaction,
+    });
+
+    await ledger.update({
+      balance: parseFloat(ledger.balance) + parseFloat(rent_amount),
+      deposit: parseFloat(ledger.deposit) + parseFloat(security_deposit)
     }, { transaction });
 
     // Update the listing status to 'closed'
@@ -108,12 +116,10 @@ exports.getLeaseById = async (req, res) => {
       return res.status(404).json({ message: 'Lease not found.' });
     }
 
-    // CRITICAL SECURITY FIX: Check if the user is authorized based on their role and ownership
     const isOwner = lease.listing.property.owner_id === userId;
-    const isTenant = lease.tenant_id === userId; // Note: Assuming userId can also be a tenant ID
-    const isAdmin = userRole === 'admin';
 
-    if (!isAdmin && !isOwner && !isTenant) {
+
+    if (!isOwner) {
       logger.warn(`Unauthorized attempt to view lease ${id} by user ID ${userId}.`);
       return res.status(403).json({ message: 'You are not authorized to view this lease.' });
     }
@@ -135,7 +141,7 @@ exports.getAllLeases = async (req, res) => {
   try {
     const { id: userId, role: userRole } = req.user;
     const whereCondition = {};
-    
+
     // CRITICAL SECURITY FIX: Agents should only see their own properties' leases
     if (userRole === 'agent') {
       const properties = await Property.findAll({ where: { owner_id: userId }, attributes: ['id'] });
@@ -145,8 +151,6 @@ exports.getAllLeases = async (req, res) => {
       }
       whereCondition['$listing.property_id$'] = { [Op.in]: propertyIds };
     }
-    
-    // Note: Admin role is handled by the absence of a `where` clause.
 
     const leases = await Lease.findAll({
       where: whereCondition,
@@ -175,7 +179,14 @@ exports.updateLease = async (req, res) => {
   try {
     const { id } = req.params;
     const { id: userId, role: userRole } = req.user;
-    const { start_date, end_date, rent_amount, deposit_amount, status } = req.body;
+    const { start_date, end_date, rent_amount, security_deposit, status } = req.body;
+
+    const { error } = updateLeaseSchema.validate(req.body);
+    if (error) {
+      await transaction.rollback();
+      logger.warn(`Validation failed during lease update: ${error.details[0].message}`);
+      return res.status(400).json({ message: error.details[0].message });
+    }
 
     const lease = await Lease.findByPk(id, {
       include: [{ model: Listing, as: 'listing', include: [{ model: Property, as: 'property' }] }]
@@ -186,15 +197,28 @@ exports.updateLease = async (req, res) => {
       return res.status(404).json({ message: 'Lease not found.' });
     }
 
-    // CRITICAL SECURITY FIX: Allow admin to bypass ownership check
     const isOwner = lease.listing.property.owner_id === userId;
-    if (userRole !== 'admin' && !isOwner) {
+    if (!isOwner) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to update lease ${id} by user ID ${userId}.`);
       return res.status(403).json({ message: 'You are not authorized to update this lease.' });
     }
 
-    await lease.update({ start_date, end_date, monthly_rent: rent_amount, deposit: deposit_amount, status }, { transaction });
+    const ledger = await Ledger.findOne({ where: { tenant_id: lease.tenant_id }, transaction });
+    if (ledger) {
+      const oldRent = parseFloat(lease.monthly_rent);
+      const oldDeposit = parseFloat(lease.deposit);
+      const newRent = parseFloat(rent_amount || oldRent);
+      const newDeposit = parseFloat(security_deposit || oldDeposit);
+
+      await ledger.update({
+        balance: parseFloat(ledger.balance) - oldRent + newRent,
+        deposit: parseFloat(ledger.deposit) - oldDeposit + newDeposit,
+      }, { transaction });
+    }
+
+    // Update lease record
+    await lease.update({ start_date, end_date, monthly_rent: rent_amount, deposit: security_deposit, status }, { transaction });
 
     logger.info(`Lease ${id} updated.`);
     await transaction.commit();
@@ -210,7 +234,7 @@ exports.updateLease = async (req, res) => {
 };
 
 /**
- * Deletes a lease record.
+ * Deletes a lease record and updates the tenant's ledger.
  * This is an administrative action for admins and property owners.
  * @param {object} req - The request object.
  * @param {object} res - The response object.
@@ -231,12 +255,19 @@ exports.deleteLease = async (req, res) => {
       return res.status(404).json({ message: 'Lease not found.' });
     }
 
-    // CRITICAL SECURITY FIX: Allow admin to bypass ownership check
     const isOwner = lease.listing.property.owner_id === userId;
-    if (userRole !== 'admin' && !isOwner) {
+    if (!isOwner) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to delete lease ${id} by user ID ${userId}.`);
       return res.status(403).json({ message: 'You are not authorized to delete this lease.' });
+    }
+
+    const ledger = await Ledger.findOne({ where: { tenant_id: lease.tenant_id }, transaction });
+    if (ledger) {
+      await ledger.update({
+        balance: parseFloat(ledger.balance) - parseFloat(lease.monthly_rent),
+        deposit: parseFloat(ledger.deposit) - parseFloat(lease.deposit)
+      }, { transaction });
     }
 
     // Find the associated listing and set its status back to active

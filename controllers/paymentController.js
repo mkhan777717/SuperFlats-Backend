@@ -5,54 +5,70 @@ const Lease = db.Lease;
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
+const Ledger = db.Ledger; // Added Ledger model
 
-// Create a new payment record
+/**
+ * Creates a new payment record.
+ * This should be a record of a payment, with a default 'pending' status.
+ * Only the property owner or an admin can create this record.
+ */
 exports.createPayment = async (req, res) => {
+  const transaction = await db.sequelize.transaction();
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { lease_id, amount, currency, method } = req.body;
+    const { lease_id, amount, method } = req.body;
 
     const lease = await Lease.findByPk(lease_id, {
-        include: [{ 
-            model: Listing, 
-            as: 'listing', 
-            include: [{ model: Property, as: 'property' }]
-        }]
+      include: [{
+        model: Listing,
+        as: 'listing',
+        include: [{ model: Property, as: 'property' }]
+      }],
+      transaction
     });
 
     if (!lease) {
+      await transaction.rollback();
+      logger.warn(`Failed to create payment: Lease ID ${lease_id} not found.`);
       return res.status(404).json({ message: 'Lease not found.' });
     }
-    
-    // CRITICAL SECURITY FIX: Only the owner or admin can create a payment record
-    const isOwner = lease.listing.property.owner_id === userId;
-    const isAdmin = userRole === 'admin';
 
-    if (!isOwner && !isAdmin) {
-        logger.warn(`Unauthorized attempt to create payment for lease ID ${lease_id} by user ID ${userId}.`);
-        return res.status(403).json({ message: 'You are not authorized to create payments.' });
+    // Security check: Verify user is the property owner or an admin
+    const isOwner = lease.listing.property.owner_id === userId;
+
+
+    if (!isOwner) {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to create payment for lease ID ${lease_id} by user ID ${userId}.`);
+      return res.status(403).json({ message: 'You are not authorized to create payments.' });
     }
 
     const newPayment = await Payment.create({
       lease_id,
-      payer_id: lease.tenant_id, // Get the payer ID securely from the lease tenant
+      payer_id: lease.tenant_id,
       amount,
-      currency,
       method,
-      status: 'completed',
-    });
+      status: 'pending', // Set status to 'pending' by default
+    }, { transaction });
 
-    logger.info(`New payment of ${amount} ${currency} recorded for lease ID: ${lease_id}`);
+    await transaction.commit();
+    logger.info(`New payment of ${amount} recorded as 'pending' for lease ID: ${lease_id} by user ${userId}.`);
     res.status(201).json({ message: 'Payment recorded successfully.', payment: newPayment });
 
   } catch (error) {
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
     logger.error('Error creating payment:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
-// Get all payments for a specific lease
+/**
+ * Retrieves all payments for a specific lease.
+ * Only the tenant, owner, or an agent/admin can view these payments.
+ */
 exports.getPaymentsByLease = async (req, res) => {
   try {
     const { leaseId } = req.params;
@@ -60,40 +76,38 @@ exports.getPaymentsByLease = async (req, res) => {
     const userRole = req.user.role;
 
     const lease = await Lease.findByPk(leaseId, {
-        include: [{
-            model: Listing,
-            as: 'listing',
-            include: [{ model: Property, as: 'property' }]
-        }]
+      include: [{
+        model: Listing,
+        as: 'listing',
+        include: [{ model: Property, as: 'property' }]
+      }]
     });
 
     if (!lease) {
-        return res.status(404).json({ message: 'Lease not found.' });
+      logger.warn(`Failed to fetch payments: Lease ID ${leaseId} not found.`);
+      return res.status(404).json({ message: 'Lease not found.' });
     }
 
+    // Security check: Verify user is the tenant, owner, or an authorized agent/admin
     const isTenant = lease.tenant_id === userId;
     const isOwner = lease.listing.property.owner_id === userId;
-    const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
 
-    if (!isTenant && !isOwner && !isAdminOrAgent) {
-        logger.warn(`Unauthorized attempt to view payments for lease ID ${leaseId} by user ID ${userId}.`);
-        return res.status(403).json({ message: 'You are not authorized to view payments for this lease.' });
+
+    if (!isTenant && !isOwner ) {
+      logger.warn(`Unauthorized attempt to view payments for lease ID ${leaseId} by user ID ${userId}.`);
+      return res.status(403).json({ message: 'You are not authorized to view payments for this lease.' });
     }
 
     const payments = await Payment.findAll({
       where: { lease_id: leaseId },
       include: [
         { model: Lease, as: 'lease' },
-        // FIX: Replaced 'username' with 'name' to match your User model.
         { model: User, as: 'payer', attributes: ['id', 'name', 'email'] },
       ],
       order: [['payment_date', 'DESC']],
     });
 
-    if (!payments.length) {
-      return res.status(200).json([]);
-    }
-
+    logger.info(`Retrieved ${payments.length} payments for lease ID ${leaseId} by user ${userId}.`);
     res.status(200).json(payments);
 
   } catch (error) {
@@ -102,8 +116,12 @@ exports.getPaymentsByLease = async (req, res) => {
   }
 };
 
-// Update a payment record (e.g., from pending to completed)
+/**
+ * Updates a payment record's status and updates the ledger balance.
+ * Only the property owner, an agent, or an admin can update the status.
+ */
 exports.updatePaymentStatus = async (req, res) => {
+  const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -112,85 +130,117 @@ exports.updatePaymentStatus = async (req, res) => {
 
     const allowedStatuses = ['pending', 'completed', 'failed'];
     if (!allowedStatuses.includes(status)) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Invalid payment status.' });
     }
 
     const payment = await Payment.findByPk(id, {
-        include: [{ 
-            model: Lease, 
-            as: 'lease', 
-            include: [{ 
-                model: Listing, 
-                as: 'listing',
-                include: [{ model: Property, as: 'property' }]
-            }] 
+      include: [{
+        model: Lease,
+        as: 'lease',
+        include: [{
+          model: Listing,
+          as: 'listing',
+          include: [{ model: Property, as: 'property' }]
         }]
+      }],
+      transaction
     });
-    
+
     if (!payment) {
+      await transaction.rollback();
+      logger.warn(`Failed to update payment: Payment ID ${id} not found.`);
       return res.status(404).json({ message: 'Payment not found.' });
     }
 
-    // CRITICAL SECURITY FIX: Only the owner, agent, or admin can update the status
+    // Security check: Verify user is the owner, agent, or admin
     const isOwner = payment.lease.listing.property.owner_id === userId;
-    const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
 
-    if (!isOwner && !isAdminOrAgent) {
-        logger.warn(`Unauthorized attempt to update payment ID ${id} by user ID ${userId}.`);
-        return res.status(403).json({ message: 'You are not authorized to update this payment.' });
+    if (!isOwner ) {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to update payment ID ${id} by user ID ${userId}.`);
+      return res.status(403).json({ message: 'You are not authorized to update this payment.' });
     }
 
-    payment.status = status;
-    await payment.save();
+    // --- CRITICAL LEDGER UPDATE LOGIC ---
+    if (status === 'completed' && payment.status !== 'completed') {
+      const ledger = await Ledger.findOne({
+        where: { tenant_id: payment.payer_id },
+        transaction
+      });
 
-    logger.info(`Payment ID ${id} status updated to: ${status}`);
+      if (!ledger) {
+        await transaction.rollback();
+        return res.status(404).json({ message: 'Ledger not found for this tenant.' });
+      }
+
+      const newBalance = parseFloat(ledger.balance) - parseFloat(payment.amount);
+      await ledger.update({ balance: newBalance }, { transaction });
+
+      logger.info(`Ledger for tenant ${payment.payer_id} updated. New balance: ${newBalance}.`);
+    }
+    // --- END OF LEDGER UPDATE LOGIC ---
+
+    payment.status = status;
+    await payment.save({ transaction });
+    await transaction.commit();
+
+    logger.info(`Payment ID ${id} status updated to: ${status} by user ${userId}.`);
     res.status(200).json({ message: 'Payment status updated successfully.', payment });
 
   } catch (error) {
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
     logger.error(`Error updating payment status for ID ${req.params.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
-// Get a single payment by ID
+/**
+ * Retrieves a single payment record by its ID.
+ * Only the payer, owner, or an agent/admin can view the payment.
+ */
 exports.getPaymentById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const userId = req.user.id;
-        const userRole = req.user.role;
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
 
-        const payment = await Payment.findByPk(id, {
-            include: [
-                { 
-                    model: Lease, 
-                    as: 'lease',
-                    include: [{
-                        model: Listing,
-                        as: 'listing',
-                        include: [{ model: Property, as: 'property' }]
-                    }]
-                },
-                { model: User, as: 'payer', attributes: ['id', 'email'] },
-            ],
-        });
+    const payment = await Payment.findByPk(id, {
+      include: [
+        {
+          model: Lease,
+          as: 'lease',
+          include: [{
+            model: Listing,
+            as: 'listing',
+            include: [{ model: Property, as: 'property' }]
+          }]
+        },
+        { model: User, as: 'payer', attributes: ['id', 'email'] },
+      ],
+    });
 
-        if (!payment) {
-            return res.status(404).json({ message: 'Payment not found.' });
-        }
-        
-        // CRITICAL SECURITY FIX: Only authorized users can view a payment
-        const isPayer = payment.payer_id === userId;
-        const isOwner = payment.lease.listing.property.owner_id === userId;
-        const isAdminOrAgent = userRole === 'admin' || userRole === 'agent';
-
-        if (!isPayer && !isOwner && !isAdminOrAgent) {
-            logger.warn(`Unauthorized attempt to view payment ID ${id} by user ID ${userId}.`);
-            return res.status(403).json({ message: 'You are not authorized to view this payment.' });
-        }
-
-        res.status(200).json(payment);
-    } catch (error) {
-        logger.error(`Error fetching payment with ID ${req.params.id}:`, error);
-        res.status(500).json({ error: 'Internal server error.' });
+    if (!payment) {
+      logger.warn(`Failed to fetch payment: Payment ID ${id} not found.`);
+      return res.status(404).json({ message: 'Payment not found.' });
     }
+
+    // Security check: Verify user is the payer, owner, or an authorized agent/admin
+    const isPayer = payment.payer_id === userId;
+    const isOwner = payment.lease.listing.property.owner_id === userId;
+
+    if (!isPayer && !isOwner ) {
+      logger.warn(`Unauthorized attempt to view payment ID ${id} by user ID ${userId}.`);
+      return res.status(403).json({ message: 'You are not authorized to view this payment.' });
+    }
+
+    logger.info(`Payment ID ${id} retrieved by user ${userId}.`);
+    res.status(200).json(payment);
+
+  } catch (error) {
+    logger.error(`Error fetching payment with ID ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 };

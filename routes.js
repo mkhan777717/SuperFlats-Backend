@@ -13,6 +13,7 @@ const listingController = require('./controllers/listingController');
 const leaseController = require('./controllers/leaseController');
 const userController = require('./controllers/userController');
 const tenantController = require('./controllers/tenantController'); // New tenant controller
+const ledgerController = require('./controllers/ledgerController'); // New ledger controller
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -80,10 +81,10 @@ router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
 
-// -------------------- Payment Routes --------------------
-router.post('/payments', authMiddleware, roleMiddleware('admin'), paymentController.createPayment);
-router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('client', 'admin', 'agent'), paymentController.getPaymentsByLease);
-router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'agent'), paymentController.updatePaymentStatus);
+// // -------------------- Payment Routes --------------------
+// router.post('/payments', authMiddleware, roleMiddleware('admin'), paymentController.createPayment);
+// router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('client', 'admin', 'agent'), paymentController.getPaymentsByLease);
+// router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'agent'), paymentController.updatePaymentStatus);
 
 
 // -------------------- Employee Routes --------------------
@@ -103,12 +104,11 @@ router.delete('/grouped-listings/:id', authMiddleware, roleMiddleware('admin'), 
 
 
 // -------------------- Lease Routes --------------------
-router.post('/leases', authMiddleware, roleMiddleware('admin'), leaseController.createLease);
-
-router.get('/leases', authMiddleware, roleMiddleware('admin'), leaseController.getAllLeases);
-router.get('/leases/:id', authMiddleware, roleMiddleware( 'admin'), leaseController.getLeaseById);
-router.put('/leases/:id', authMiddleware, roleMiddleware('admin'), leaseController.updateLease);
-router.delete('/leases/:id', authMiddleware, roleMiddleware('admin'), leaseController.deleteLease);
+router.post('/leases', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.createLease);
+router.get('/leases', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getAllLeases);
+router.get('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getLeaseById);
+router.put('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.updateLease);
+router.delete('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.deleteLease);
 
 // -------------------- Tenant Routes --------------------
 router.post('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.createTenant);
@@ -117,5 +117,12 @@ router.get('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantContro
 router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.updateTenantProfile);
 router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.deleteTenant);
 
+// -------------------- Ledger Routes (Admin-Only) --------------------
+router.get('/ledgers/tenants/:tenantId/summary', authMiddleware, roleMiddleware('admin'), ledgerController.getLedgerByTenantId);
+router.get('/ledgers/tenants/:tenantId/entries', authMiddleware, roleMiddleware('admin'), ledgerController.getAllEntries);
+router.get('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.getEntryById);
+router.post('/ledgers/tenants/:tenantId/entries', authMiddleware, roleMiddleware('admin'), ledgerController.createEntry);
+router.put('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.updateEntry);
+router.delete('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.deleteEntry);
 
 module.exports = router;

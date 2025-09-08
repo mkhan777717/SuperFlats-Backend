@@ -1,7 +1,6 @@
 const Joi = require('joi');
 
 // Joi schema for user registration data
-// The role is hardcoded in the controller to prevent privilege escalation.
 const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
@@ -24,9 +23,9 @@ const createPropertySchema = Joi.object({
     area_sqft: Joi.number().positive(),
     furnishing: Joi.string().valid('furnished', 'semi-furnished', 'unfurnished'),
     parking: Joi.boolean(),
-    amenities: Joi.string().allow(''), // Allow an empty string for amenities
+    amenities: Joi.string().allow(''),
   }).optional(),
-    isManaged: Joi.boolean()
+  isManaged: Joi.boolean()
 });
 
 // Joi schema for creating a new listing
@@ -45,7 +44,7 @@ const createListingSchema = Joi.object({
 const createTenantSchema = Joi.object({
   name: Joi.string().required(),
   contact_info: Joi.string().allow('').optional(),
-  joinDate: Joi.date().iso().optional(), // Now optional for creation
+  joinDate: Joi.date().iso().optional(),
 });
 
 // Joi schema for updating a tenant
