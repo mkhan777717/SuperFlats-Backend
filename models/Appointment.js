@@ -15,6 +15,14 @@ module.exports = (sequelize) => {
             type: DataTypes.INTEGER,
             allowNull: false,
         },
+        employee_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true, // This can be null until an employee is assigned
+            references: {
+                model: 'users',
+                key: 'id',
+            },
+        },
         scheduled_at: {
             type: DataTypes.DATE,
             allowNull: false,
@@ -22,9 +30,9 @@ module.exports = (sequelize) => {
         status: {
             type: DataTypes.STRING,
             allowNull: false,
-            defaultValue: 'pending',
+            defaultValue: 'non_assigned',
             validate: {
-                isIn: [['pending', 'confirmed', 'cancelled', 'completed']],
+                isIn: [['non_assigned', 'assigned', 'pending', 'confirmed', 'cancelled', 'completed']],
             },
         },
         created_at: {
@@ -34,10 +42,8 @@ module.exports = (sequelize) => {
         },
     }, {
         tableName: 'appointments',
-        timestamps: false, // We're using a specific created_at column
+        timestamps: false,
         indexes: [
-            // CRITICAL: This unique index prevents double-booking.
-            // A listing can only have one appointment at a specific scheduled_at time.
             {
                 unique: true,
                 fields: ['listing_id', 'scheduled_at'],
@@ -47,7 +53,6 @@ module.exports = (sequelize) => {
 
     Appointment.associate = (models) => {
         // An appointment belongs to a user (the one who booked it)
-        // onDelete: 'CASCADE' ensures the appointment is deleted if the user is deleted.
         Appointment.belongsTo(models.User, {
             foreignKey: 'user_id',
             as: 'user',
@@ -55,11 +60,17 @@ module.exports = (sequelize) => {
         });
 
         // An appointment belongs to a specific listing
-        // onDelete: 'CASCADE' ensures the appointment is deleted if the listing is deleted.
         Appointment.belongsTo(models.Listing, {
             foreignKey: 'listing_id',
             as: 'listing',
             onDelete: 'CASCADE',
+        });
+        
+        // An appointment belongs to an employee (the one who's assigned to it)
+        Appointment.belongsTo(models.User, {
+            foreignKey: 'employee_id',
+            as: 'employee',
+            onDelete: 'SET NULL', // Set to null if the employee is deleted
         });
     };
 
