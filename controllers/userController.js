@@ -28,7 +28,7 @@ exports.getProfile = async (req, res) => {
 // Update user's name and email
 exports.updateProfile = async (req, res) => {
     try {
-        const { name, email } = req.body;
+        const { name, email, phone_number } = req.body;
         const user = await User.findByPk(req.user.id);
         if (!user) {
             logger.warn(`Profile update failed for user ${req.user.id}: User not found.`);
@@ -42,9 +42,18 @@ exports.updateProfile = async (req, res) => {
                 return res.status(409).json({ message: 'This email is already in use.' });
             }
         }
+        
+        if (phone_number && phone_number !== user.phone_number) {
+            const phoneNumberExists = await User.findOne({ where: { phone_number } });
+            if (phoneNumberExists) {
+                logger.warn(`Profile update failed for user ${req.user.id}: Phone number '${phone_number}' is already in use.`);
+                return res.status(409).json({ message: 'This phone number is already in use.' });
+            }
+        }
 
         user.name = name || user.name;
         user.email = email || user.email;
+        user.phone_number = phone_number || user.phone_number;
 
         await user.save();
 
@@ -54,6 +63,7 @@ exports.updateProfile = async (req, res) => {
                 id: user.id,
                 name: user.name,
                 email: user.email,
+                phone_number: user.phone_number,
                 role: user.role,
             }
         });
