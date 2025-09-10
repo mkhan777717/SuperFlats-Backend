@@ -5,7 +5,9 @@ const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  role: Joi.string().valid('client', 'admin', 'agent').required(),
+  phone_number: Joi.string().pattern(/^[0-9]+$/).required().messages({
+    'string.pattern.base': 'Phone number must contain only numbers.'
+  }),
 });
 
 // Joi schema for creating a new property

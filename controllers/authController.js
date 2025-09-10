@@ -16,14 +16,33 @@ const generateToken = (id, role) => {
 // Register a new user with a hardcoded 'admin' role
 exports.registerAdmin = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, phone_number } = req.body;
         const role = 'admin';
+
+        // Validate request body against Joi schema
+        const { error } = userRegistrationSchema.validate(req.body);
+        if (error) {
+            logger.warn(`Validation failed during admin registration: ${error.details[0].message}`);
+            return res.status(400).json({ message: error.details[0].message });
+        }
 
         // Check if a user with the same email already exists
         const userExists = await User.findOne({ where: { email } });
         if (userExists) {
             logger.warn(`Admin registration failed: User with email '${email}' already exists.`);
             return res.status(409).json({ message: `A user with this email already exists.` });
+        }
+
+        // Check if a user with the same phone number already exists for admin/agent roles
+        const phoneNumberExists = await User.findOne({ 
+            where: { 
+                phone_number,
+                role: ['admin', 'agent'] 
+            } 
+        });
+        if (phoneNumberExists) {
+            logger.warn(`Admin registration failed: Phone number '${phone_number}' is already in use by an admin or agent.`);
+            return res.status(409).json({ message: 'This phone number is already registered to an admin or agent account.' });
         }
 
         // Hash the password
@@ -34,6 +53,7 @@ exports.registerAdmin = async (req, res) => {
         const newUser = await User.create({
             name,
             email,
+            phone_number,
             role,
             password: hashedPassword,
         });
@@ -46,6 +66,7 @@ exports.registerAdmin = async (req, res) => {
             id: newUser.id,
             name: newUser.name,
             email: newUser.email,
+            phone_number: newUser.phone_number,
             role: newUser.role,
             token,
         });
@@ -59,14 +80,33 @@ exports.registerAdmin = async (req, res) => {
 // Register a new user with a hardcoded 'client' role
 exports.registerClient = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, phone_number } = req.body;
         const role = 'client';
+
+        // Validate request body against Joi schema
+        const { error } = userRegistrationSchema.validate(req.body);
+        if (error) {
+            logger.warn(`Validation failed during client registration: ${error.details[0].message}`);
+            return res.status(400).json({ message: error.details[0].message });
+        }
 
         // Check if a user with the same email already exists
         const userExists = await User.findOne({ where: { email } });
         if (userExists) {
             logger.warn(`Client registration failed: User with email '${email}' already exists.`);
             return res.status(409).json({ message: `A user with this email already exists.` });
+        }
+
+        // Check if a user with the same phone number already exists for the client role
+        const phoneNumberExists = await User.findOne({ 
+            where: { 
+                phone_number,
+                role: 'client' 
+            } 
+        });
+        if (phoneNumberExists) {
+            logger.warn(`Client registration failed: Phone number '${phone_number}' is already in use by a client.`);
+            return res.status(409).json({ message: 'This phone number is already registered to a client account.' });
         }
 
         // Hash the password
@@ -77,6 +117,7 @@ exports.registerClient = async (req, res) => {
         const newUser = await User.create({
             name,
             email,
+            phone_number,
             role,
             password: hashedPassword,
         });
@@ -89,6 +130,7 @@ exports.registerClient = async (req, res) => {
             id: newUser.id,
             name: newUser.name,
             email: newUser.email,
+            phone_number: newUser.phone_number,
             role: newUser.role,
             token,
         });
@@ -110,9 +152,9 @@ exports.loginAdmin = async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        // Check if the user has the 'admin' role
+        // Check if the user has the 'admin' or 'agent' role
         if (user.role !== 'admin' && user.role !== 'agent') {
-            logger.warn(` login failed: User ${email} is not an admin or agent.`);
+            logger.warn(`Login failed: User ${email} is not an admin or agent.`);
             return res.status(403).json({ message: 'You do not have permission to log in here.' });
         }
 
@@ -129,6 +171,7 @@ exports.loginAdmin = async (req, res) => {
             id: user.id,
             name: user.name,
             email: user.email,
+            phone_number: user.phone_number,
             role: user.role,
             token,
         });
@@ -169,6 +212,7 @@ exports.loginClient = async (req, res) => {
             id: user.id,
             name: user.name,
             email: user.email,
+            phone_number: user.phone_number,
             role: user.role,
             token,
         });

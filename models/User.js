@@ -19,6 +19,10 @@ module.exports = (sequelize) => {
                 isEmail: true,
             },
         },
+        phone_number: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
         password: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -50,7 +54,7 @@ module.exports = (sequelize) => {
             as: 'properties',
         });
         User.hasMany(models.Lease, {
-            foreignKey: 'client_id', 
+            foreignKey: 'client_id',
             as: 'leases',
         });
         User.hasMany(models.Payment, {
