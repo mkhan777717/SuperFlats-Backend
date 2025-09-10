@@ -18,7 +18,7 @@ exports.createEmployee = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone_number } = req.body;
 
     // Check if a user with the same email already exists
     const userExists = await User.findOne({
@@ -30,6 +30,17 @@ exports.createEmployee = async (req, res) => {
       logger.warn(`Employee creation failed: User with this email already exists.`);
       return res.status(409).json({ message: `A user with this email already exists.` });
     }
+    
+    // Check if a user with the same phone number already exists
+    const phoneNumberExists = await User.findOne({ 
+        where: { phone_number },
+        transaction,
+    });
+    if (phoneNumberExists) {
+        await transaction.rollback();
+        logger.warn(`Employee creation failed: Phone number '${phone_number}' is already in use.`);
+        return res.status(409).json({ message: 'This phone number is already registered to an account.' });
+    }
 
     // Hash the password
     const salt = await bcrypt.genSalt(10);
@@ -39,14 +50,14 @@ exports.createEmployee = async (req, res) => {
     const newUser = await User.create({
       name,
       email,
+      phone_number,
       role: role,
       password: hashedPassword,
     }, { transaction });
 
-    // 2. Create the new employee record with the specific role
+    // 2. Create the new employee record
     const newEmployee = await Employee.create({
       user_id: newUser.id,
-      role: role,
     }, { transaction });
 
     // Commit the transaction
@@ -59,11 +70,12 @@ exports.createEmployee = async (req, res) => {
         id: newUser.id,
         name: newUser.name,
         email: newUser.email,
+        phone_number: newUser.phone_number,
         role: newUser.role,
       },
       employee: {
         id: newEmployee.id,
-        role: newEmployee.role,
+        joined_at: newEmployee.joined_at,
       },
     });
 
@@ -85,7 +97,7 @@ exports.getEmployeeById = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'role']
+        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
       }],
     });
 
@@ -108,7 +120,7 @@ exports.getAllEmployees = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'role']
+        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
       }],
       order: [['joined_at', 'ASC']],
     });
@@ -120,7 +132,7 @@ exports.getAllEmployees = async (req, res) => {
   }
 };
 
-// Update an employee's role
+// Update an employee's role by updating their user account
 exports.updateEmployeeRole = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
@@ -138,14 +150,29 @@ exports.updateEmployeeRole = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Employee not found.' });
     }
+    
+    // Find the associated user and update their role
+    const user = await User.findByPk(employee.user_id, { transaction });
+    if (!user) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Associated user not found.' });
+    }
 
-    employee.role = role;
-    await employee.save({ transaction });
-
+    user.role = role;
+    await user.save({ transaction });
 
     await transaction.commit();
-    logger.info(`Employee ID ${id} role updated to: ${role}`);
-    res.status(200).json({ message: 'Employee role updated successfully.', employee });
+    logger.info(`User role for employee ID ${id} updated to: ${role}`);
+    res.status(200).json({
+      message: 'Employee role updated successfully.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone_number: user.phone_number,
+        role: user.role,
+      }
+    });
 
   } catch (error) {
     await transaction.rollback();

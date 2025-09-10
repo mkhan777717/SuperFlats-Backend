@@ -61,6 +61,9 @@ const employeeCreationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
+  phone_number: Joi.string().pattern(/^[0-9]+$/).required().messages({
+    'string.pattern.base': 'Phone number must contain only numbers.'
+  }),
   role: Joi.string().valid('agent', 'admin').required(),
 });
 
