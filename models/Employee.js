@@ -1,5 +1,3 @@
-// models/Employee.js
-
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -12,13 +10,6 @@ module.exports = (sequelize) => {
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-    },
-    role: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        isIn: [['agent', 'admin']],
-      },
     },
     joined_at: {
       type: DataTypes.DATE,
