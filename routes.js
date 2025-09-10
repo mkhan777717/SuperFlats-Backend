@@ -24,8 +24,10 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // -------------------- Auth Routes --------------------
-router.post('/auth/register', authController.register);
-router.post('/auth/login', authController.login);
+router.post('/auth/admin/register', authController.registerAdmin);
+router.post('/auth/admin/login', authController.loginAdmin);
+router.post('/auth/register', authController.registerClient);
+router.post('/auth/login', authController.loginClient);
 
 // -------------------- User Routes --------------------
 // Routes for managing the currently authenticated user's profile
