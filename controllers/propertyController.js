@@ -412,10 +412,28 @@ exports.deletePhoto = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to delete this photo.' });
     }
 
+    const wasPrimary = photo.is_primary;
+
     // Delete the photo from the file storage service.
     await deleteFile(photo.photo_url, 'photo');
     // Delete the photo record from the database.
     await photo.destroy({ transaction });
+
+    // New logic: If the deleted photo was the primary one, assign a new primary.
+    if (wasPrimary) {
+      const remainingPhotos = await PropertyPhoto.findAll({
+        where: { property_id: photo.property_id },
+        order: [['id', 'ASC']],
+        limit: 1,
+        transaction,
+      });
+
+      if (remainingPhotos.length > 0) {
+        const newPrimaryPhoto = remainingPhotos[0];
+        await newPrimaryPhoto.update({ is_primary: true }, { transaction });
+        logger.info(`Assigned new primary photo with ID ${newPrimaryPhoto.id} for property ID ${photo.property.id}.`);
+      }
+    }
 
     await transaction.commit();
     logger.info(`Photo with ID ${photoId} deleted successfully by user ID ${req.user.id}.`);
