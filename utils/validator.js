@@ -25,7 +25,7 @@ const createPropertySchema = Joi.object({
     area_sqft: Joi.number().positive(),
     furnishing: Joi.string().valid('furnished', 'semi-furnished', 'unfurnished'),
     parking: Joi.boolean(),
-    amenities: Joi.string().allow(''),
+    amenities: Joi.array(),
   }).optional(),
   isManaged: Joi.boolean()
 });

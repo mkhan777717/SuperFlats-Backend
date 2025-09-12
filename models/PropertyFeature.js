@@ -1,5 +1,3 @@
-// models/PropertyFeature.js
-
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -32,7 +30,16 @@ module.exports = (sequelize) => {
       type: DataTypes.BOOLEAN,
     },
     amenities: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSON,
+      get() {
+        // Parse the JSON string from the database back into a JavaScript array
+        const rawValue = this.getDataValue('amenities');
+        return rawValue ? JSON.parse(rawValue) : [];
+      },
+      set(val) {
+        // Stringify the array before saving it to the database
+        this.setDataValue('amenities', JSON.stringify(val));
+      }
     },
   }, {
     tableName: 'property_features',
