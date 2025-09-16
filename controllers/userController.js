@@ -3,12 +3,22 @@ const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
 const { uploadFile, deleteFile } = require('../utils/fileService');
 const User = db.User;
+const Employee = db.Employee;
+
 
 // Get authenticated user's profile information
+
 exports.getProfile = async (req, res) => {
     try {
+        // Find the user and conditionally include the Employee model
         const user = await User.findByPk(req.user.id, {
-            attributes: { exclude: ['password'] }
+            attributes: { exclude: ['password'] },
+            include: [{
+                model: Employee,
+                as: 'employee',
+                attributes: ['company_id'],
+                required: false // Use LEFT JOIN to not fail for clients
+            }],
         });
 
         if (!user) {
@@ -16,8 +26,14 @@ exports.getProfile = async (req, res) => {
             return res.status(404).json({ message: 'User not found.' });
         }
 
+        // Extract company_id if the employee record exists
+        const companyId = user.employee ? user.employee.company_id : null;
+
         logger.info(`Profile data retrieved successfully for user ${req.user.id}.`);
-        res.status(200).json(user);
+        res.status(200).json({
+            ...user.toJSON(),
+            company_id: companyId
+        });
 
     } catch (error) {
         logger.error(`Error fetching user profile for user ${req.user.id}:`, error);
@@ -42,7 +58,7 @@ exports.updateProfile = async (req, res) => {
                 return res.status(409).json({ message: 'This email is already in use.' });
             }
         }
-        
+
         if (phone_number && phone_number !== user.phone_number) {
             const phoneNumberExists = await User.findOne({ where: { phone_number } });
             if (phoneNumberExists) {

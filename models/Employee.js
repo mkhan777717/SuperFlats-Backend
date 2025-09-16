@@ -11,6 +11,11 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    // Add the company_id field to link an employee to their company.
+    company_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     joined_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -18,7 +23,7 @@ module.exports = (sequelize) => {
     },
   }, {
     tableName: 'employees',
-    timestamps: false, // We're using a specific joined_at column
+    timestamps: false,
   });
 
   Employee.associate = (models) => {
@@ -26,6 +31,12 @@ module.exports = (sequelize) => {
     Employee.belongsTo(models.User, {
       foreignKey: 'user_id',
       as: 'user',
+    });
+
+    // Add a new association: an employee belongs to a company.
+    Employee.belongsTo(models.Company, {
+      foreignKey: 'company_id',
+      as: 'company',
     });
   };
 

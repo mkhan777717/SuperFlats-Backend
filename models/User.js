@@ -38,6 +38,11 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: true,
         },
+        // Add the company_id field here
+        company_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
         created_at: {
             type: DataTypes.DATE,
             allowNull: false,
@@ -64,6 +69,18 @@ module.exports = (sequelize) => {
         User.hasMany(models.Appointment, {
             foreignKey: 'user_id',
             as: 'appointments',
+        });
+
+        // The association with the Employee model is correct
+        User.hasOne(models.Employee, {
+            foreignKey: 'user_id',
+            as: 'employee',
+        });
+
+        // Add the new association to the Company model
+        User.belongsTo(models.Company, {
+            foreignKey: 'company_id',
+            as: 'company',
         });
     };
 

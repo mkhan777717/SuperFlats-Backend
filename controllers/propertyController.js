@@ -299,7 +299,34 @@ exports.getPropertyById = async (req, res) => {
  */
 exports.getAllProperties = async (req, res) => {
   try {
+
     const properties = await Property.findAll({
+
+      include: [
+        { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
+        { model: PropertyFeature, as: 'features' },
+        { model: PropertyPhoto, as: 'photos' },
+      ],
+      order: [['created_at', 'DESC']],
+    });
+
+    res.status(200).json(properties);
+  } catch (error) {
+    logger.error('Error fetching all properties:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+/**
+ * Retrieves all properties (simple version, for backward compatibility).
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
+exports.getAllOwnProperties = async (req, res) => {
+  try {
+    const owner_id = req.user.id;
+    const properties = await Property.findAll({
+      where: { owner_id: owner_id },
       include: [
         { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
         { model: PropertyFeature, as: 'features' },
@@ -335,7 +362,7 @@ exports.updateProperty = async (req, res) => {
     }
 
     // Check ownership: ensure the authenticated user owns this property .
-    if (property.owner_id !== req.user.id ) {
+    if (property.owner_id !== req.user.id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to update property ID ${id} by user ID ${req.user.id}.`);
       return res.status(403).json({ message: 'You are not authorized to update this property.' });
@@ -406,7 +433,7 @@ exports.deletePhoto = async (req, res) => {
     }
 
     // Security check: only the owner can delete a photo from their property.
-    if (photo.property.owner_id !== req.user.id ) {
+    if (photo.property.owner_id !== req.user.id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to delete photo ID ${photoId} from property ID ${photo.property.id} by user ID ${req.user.id}.`);
       return res.status(403).json({ message: 'You are not authorized to delete this photo.' });
@@ -467,7 +494,7 @@ exports.deleteProperty = async (req, res) => {
     }
 
     // Check ownership: ensure the authenticated user owns this property or is an admin.
-    if (property.owner_id !== req.user.id ) {
+    if (property.owner_id !== req.user.id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to delete property ID ${id} by user ID ${req.user.id}.`);
       return res.status(403).json({ message: 'You are not authorized to delete this property.' });
@@ -519,7 +546,7 @@ exports.uploadPhoto = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({ message: 'No file uploaded.' });
     }
-    
+
     // Step 1: Check the current photo count for the property
     const photoCount = await PropertyPhoto.count({
       where: { property_id: propertyId },
@@ -541,7 +568,7 @@ exports.uploadPhoto = async (req, res) => {
     }
 
     // Security check: only the owner can add a photo to their property.
-    if (property.owner_id !== req.user.id ) {
+    if (property.owner_id !== req.user.id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to add a photo to property ID ${propertyId} by user ID ${req.user.id}.`);
       return res.status(403).json({ message: 'You are not authorized to add photos to this property.' });

@@ -49,6 +49,7 @@ router.post(
   roleMiddleware('admin', 'agent'),
   propertyController.createProperty
 );
+router.get('/properties/me', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.getAllOwnProperties);
 router.get('/properties/search', propertyController.searchAndFilterProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
 router.get('/properties', propertyController.getAllProperties);
@@ -91,9 +92,10 @@ router.get('/appointments/:id', authMiddleware, appointmentController.getAppoint
 
 
 // -------------------- Employee Routes --------------------
+// Updated route to get all employees for the authenticated user's company
 router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
-router.get('/employees', authMiddleware, roleMiddleware('admin', 'manager'), employeeController.getAllEmployees);
-router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'manager'), employeeController.getEmployeeById);
+router.get('/employees/', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeesByCompany);
+router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeeById);
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('admin'), employeeController.deleteEmployee);
 

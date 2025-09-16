@@ -4,12 +4,21 @@ const bcrypt = require('bcryptjs');
 const { employeeCreationSchema } = require('../utils/validator');
 const Employee = db.Employee;
 const User = db.User;
+const Company = db.Company;
 const { deleteFile } = require('../utils/fileService');
 
 // Create a new employee entry and a corresponding user account
 exports.createEmployee = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
+
+    const companyId = req.user.company_id;
+    if (!companyId) {
+      await transaction.rollback();
+      logger.error('Unauthorized attempt to create an employee: company_id not found on request.');
+      return res.status(401).json({ message: 'Unauthorized. Company ID not found.' });
+    }
+
     // Validate request body against the Joi schema.
     const { error } = employeeCreationSchema.validate(req.body);
     if (error) {
@@ -30,16 +39,16 @@ exports.createEmployee = async (req, res) => {
       logger.warn(`Employee creation failed: User with this email already exists.`);
       return res.status(409).json({ message: `A user with this email already exists.` });
     }
-    
+
     // Check if a user with the same phone number already exists
-    const phoneNumberExists = await User.findOne({ 
-        where: { phone_number },
-        transaction,
+    const phoneNumberExists = await User.findOne({
+      where: { phone_number },
+      transaction,
     });
     if (phoneNumberExists) {
-        await transaction.rollback();
-        logger.warn(`Employee creation failed: Phone number '${phone_number}' is already in use.`);
-        return res.status(409).json({ message: 'This phone number is already registered to an account.' });
+      await transaction.rollback();
+      logger.warn(`Employee creation failed: Phone number '${phone_number}' is already in use.`);
+      return res.status(409).json({ message: 'This phone number is already registered to an account.' });
     }
 
     // Hash the password
@@ -55,9 +64,10 @@ exports.createEmployee = async (req, res) => {
       password: hashedPassword,
     }, { transaction });
 
-    // 2. Create the new employee record
+    // 2. Create the new employee record and associate it with the company
     const newEmployee = await Employee.create({
       user_id: newUser.id,
+      company_id: companyId, // Link the employee to the company
     }, { transaction });
 
     // Commit the transaction
@@ -75,6 +85,7 @@ exports.createEmployee = async (req, res) => {
       },
       employee: {
         id: newEmployee.id,
+        company_id: newEmployee.company_id,
         joined_at: newEmployee.joined_at,
       },
     });
@@ -88,6 +99,7 @@ exports.createEmployee = async (req, res) => {
   }
 };
 
+
 // Get a single employee by their ID
 exports.getEmployeeById = async (req, res) => {
   try {
@@ -98,6 +110,11 @@ exports.getEmployeeById = async (req, res) => {
         model: User,
         as: 'user',
         attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
+      },
+      {
+        model: Company,
+        as: 'company',
+        attributes: ['id', 'name']
       }],
     });
 
@@ -113,10 +130,18 @@ exports.getEmployeeById = async (req, res) => {
   }
 };
 
-// Get all employees
-exports.getAllEmployees = async (req, res) => {
+// Get all employees for a specific company
+exports.getEmployeesByCompany = async (req, res) => {
   try {
+    // Assuming the authenticated user's company_id is available on the request object.
+    const companyId = req.user.employee.company_id;
+    console.log(companyId);
+    if (!companyId) {
+      return res.status(401).json({ message: 'Unauthorized. Company ID not found.' });
+    }
+
     const employees = await Employee.findAll({
+      where: { company_id: companyId },
       include: [{
         model: User,
         as: 'user',
@@ -127,7 +152,7 @@ exports.getAllEmployees = async (req, res) => {
 
     res.status(200).json(employees);
   } catch (error) {
-    logger.error('Error fetching all employees:', error);
+    logger.error('Error fetching employees by company:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
@@ -139,7 +164,7 @@ exports.updateEmployeeRole = async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
 
-    const allowedRoles = ['agent','admin'];
+    const allowedRoles = ['agent', 'admin'];
     if (!allowedRoles.includes(role)) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Invalid employee role.' });
@@ -150,7 +175,7 @@ exports.updateEmployeeRole = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Employee not found.' });
     }
-    
+
     // Find the associated user and update their role
     const user = await User.findByPk(employee.user_id, { transaction });
     if (!user) {
