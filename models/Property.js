@@ -42,16 +42,7 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    latitude: {
-      type: DataTypes.DECIMAL(10, 8),
-      allowNull: true,
-      defaultValue: null,
-    },
-    longitude: {
-      type: DataTypes.DECIMAL(11, 8),
-      allowNull: true,
-      defaultValue: null,
-    },
+
     isManaged: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

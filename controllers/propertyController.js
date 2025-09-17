@@ -10,38 +10,7 @@ const User = db.User;
 const axios = require('axios');
 const Listing = db.Listing;
 
-/**
- * Helper function to get latitude and longitude from an address using a geocoding service.
- * @param {string} address - The street address.
- * @param {string} city - The city.
- * @param {string} state - The state.
- * @param {string} zipcode - The postal code.
- * @returns {Promise<{latitude: number|null, longitude: number|null}>} The coordinates.
- */
-const getLatLongFromAddress = async (address, city, state, zipcode) => {
-  const fullAddress = `${address}, ${city}, ${state} ${zipcode}`;
-  try {
-    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: {
-        q: fullAddress,
-        format: 'json',
-        limit: 1,
-      },
-      headers: {
-        // A user-agent header is required by Nominatim's terms of service.
-        'User-Agent': 'SuperFlatsApp/1.0 (contact@example.com)'
-      }
-    });
 
-    if (response.data && response.data.length > 0) {
-      const { lat, lon } = response.data[0];
-      return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
-    }
-  } catch (error) {
-    logger.error(`Geocoding failed for address: ${fullAddress}`, error);
-  }
-  return { latitude: null, longitude: null };
-};
 
 /**
  * Creates a new property, its features, and photos in a single transaction.
@@ -59,14 +28,9 @@ exports.createProperty = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-
     // Get the owner_id securely from the authenticated user's token
     const owner_id = req.user.id;
-    // UPDATED: Destructure the isManaged field from the request body.
     const { title, description, property_type, address, city, state, zipcode, features, isManaged } = req.body;
-
-    // Get latitude and longitude from the address
-    const { latitude, longitude } = await getLatLongFromAddress(address, city, state, zipcode);
 
     // Step 1: Create the property within the transaction
     const newProperty = await Property.create({
@@ -78,26 +42,31 @@ exports.createProperty = async (req, res) => {
       city,
       state,
       zipcode,
-      latitude,
-      longitude,
-      // Pass the isManaged value if it exists, otherwise Sequelize will use the default 'false'.
       isManaged,
     }, { transaction });
 
     // Step 2: Create associated features within the same transaction
-    if (features) {
+    if (features && typeof features === 'object' && features !== null) {
       await PropertyFeature.create({
         property_id: newProperty.id,
         ...features,
       }, { transaction });
     }
 
-
-
     // Step 3: Commit the transaction
     await transaction.commit();
+
+    // Step 4: Fetch the newly created property with its associations
+    const propertyWithAssociations = await Property.findByPk(newProperty.id, {
+      include: [
+        { model: User, as: 'owner' },
+        { model: PropertyFeature, as: 'features' },
+        { model: PropertyPhoto, as: 'photos' }
+      ]
+    });
+
     logger.info(`New property created with ID: ${newProperty.id} by user ID: ${owner_id}`);
-    res.status(201).json({ message: 'Property created successfully.', property: newProperty });
+    res.status(201).json({ message: 'Property created successfully.', property: propertyWithAssociations });
 
   } catch (error) {
     // Rollback the transaction in case of any error
@@ -149,23 +118,7 @@ const buildQueryConditions = (query) => {
     ];
   }
 
-  // Handle proximity search using latitude, longitude, and radius
-  if (query.latitude && query.longitude && query.radius) {
-    const lat = parseFloat(query.latitude);
-    const lon = parseFloat(query.longitude);
-    const radius = parseFloat(query.radius);
-    const earthRadiusMiles = 3959;
 
-    // Use a literal to perform the Haversine formula calculation in SQL.
-    // This is more efficient than fetching all properties and filtering in application code.
-    conditions[Op.and] = conditions[Op.and] || [];
-    conditions[Op.and].push(literal(`
-      ${earthRadiusMiles} * acos(
-        cos(radians(${lat})) * cos(radians(latitude)) * cos(radians(longitude) - radians(${lon})) +
-        sin(radians(${lat})) * sin(radians(latitude))
-      ) < ${radius}
-    `));
-  }
 
   // Handle feature-based filters
   for (const feature of allowedFeatures) {
@@ -196,24 +149,9 @@ exports.searchAndFilterProperties = async (req, res) => {
     // An array to conditionally include the listings model
     const includeListings = [];
 
-    // --- Dynamic Sorting Logic ---
-    const lat = req.query.latitude;
-    const lon = req.query.longitude;
 
-    if (req.query.sort_by === 'distance' && lat && lon) {
-      // Option 1: Sort by distance from a specified point.
-      const earthRadiusMiles = 3959;
-      // Add a calculated 'distance_miles' attribute to the select statement.
-      attributes.include.push([
-        literal(`${earthRadiusMiles} * acos(
-          cos(radians(${lat})) * cos(radians(latitude)) * cos(radians(longitude) - radians(${lon})) +
-          sin(radians(${lat})) * sin(radians(latitude))
-        )`),
-        'distance_miles',
-      ]);
-      // Sort the results using the calculated distance.
-      order.push([literal('distance_miles'), req.query.sort_order || 'ASC']);
-    } else if (req.query.sort_by === 'price') {
+
+    if (req.query.sort_by === 'price') {
       // Option 2: Sort by price from the Listing model.
       order.push([{ model: Listing, as: 'listings' }, 'price', req.query.sort_order || 'DESC']);
       // A necessary inner join to make sure we only sort by listings that exist.
@@ -368,17 +306,6 @@ exports.updateProperty = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this property.' });
     }
 
-    // Update latitude and longitude if the address fields have changed.
-    if (propertyData.address || propertyData.city || propertyData.state || propertyData.zipcode) {
-      const { latitude, longitude } = await getLatLongFromAddress(
-        propertyData.address || property.address,
-        propertyData.city || property.city,
-        propertyData.state || property.state,
-        propertyData.zipcode || property.zipcode
-      );
-      propertyData.latitude = latitude;
-      propertyData.longitude = longitude;
-    }
 
     await property.update(propertyData, { transaction });
 
@@ -392,9 +319,20 @@ exports.updateProperty = async (req, res) => {
       }
     }
 
+    // Commit the transaction after all updates are successful
     await transaction.commit();
+
+    // Fetch the updated property with all its associations to match the createProperty response
+    const updatedPropertyWithAssociations = await Property.findByPk(id, {
+      include: [
+        { model: User, as: 'owner' },
+        { model: PropertyFeature, as: 'features' },
+        { model: PropertyPhoto, as: 'photos' }
+      ]
+    });
+
     logger.info(`Property with ID ${id} updated successfully by user ID ${req.user.id}.`);
-    res.status(200).json({ message: 'Property updated successfully.', property });
+    res.status(200).json({ message: 'Property updated successfully.', property: updatedPropertyWithAssociations });
 
   } catch (error) {
     if (transaction.finished !== 'commit') {
@@ -481,6 +419,7 @@ exports.deletePhoto = async (req, res) => {
  * @param {object} req - The request object.
  * @param {object} res - The response object.
  */
+//TODO: Prevent deletion if there are active leases associated with any of the property's listings.
 exports.deleteProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {

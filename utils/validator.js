@@ -14,7 +14,7 @@ const userRegistrationSchema = Joi.object({
 const createPropertySchema = Joi.object({
   title: Joi.string().min(5).required(),
   description: Joi.string().min(20).required(),
-  property_type: Joi.string().valid('apartment', 'villa', 'office', 'land').required(),
+  property_type: Joi.string().valid('apartment', 'villa', 'house', 'condo').required(),
   address: Joi.string().required(),
   city: Joi.string().required(),
   state: Joi.string().required(),
@@ -98,7 +98,7 @@ const createLeaseSchema = Joi.object({
   tenant_id: Joi.number().integer().positive().required(),
   start_date: Joi.date().iso().required(),
   end_date: Joi.date().iso().greater(Joi.ref('start_date')).required(),
-  rent_amount: Joi.number().precision(2).positive().required(),
+  monthly_rent: Joi.number().precision(2).positive().required(),
   security_deposit: Joi.number().precision(2).positive().required(),
 });
 
@@ -106,7 +106,7 @@ const createLeaseSchema = Joi.object({
 const updateLeaseSchema = Joi.object({
   start_date: Joi.date().iso().optional(),
   end_date: Joi.date().iso().greater(Joi.ref('start_date')).optional(),
-  rent_amount: Joi.number().precision(2).positive().optional(),
+  monthly_rent: Joi.number().precision(2).positive().optional(),
   security_deposit: Joi.number().precision(2).positive().optional(),
   status: Joi.string().valid('active', 'inactive', 'cancelled').optional(),
 });
