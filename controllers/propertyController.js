@@ -7,6 +7,7 @@ const Property = db.Property;
 const PropertyFeature = db.PropertyFeature;
 const PropertyPhoto = db.PropertyPhoto;
 const User = db.User;
+const Company = db.Company;
 const axios = require('axios');
 const Listing = db.Listing;
 
@@ -28,13 +29,17 @@ exports.createProperty = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Get the owner_id securely from the authenticated user's token
-    const owner_id = req.user.id;
+    // Get the company_id securely from the authenticated user's token
+    if (!req.user || !req.user.company_id) {
+      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+    }
+    const company_id = req.user.company_id;
+    logger.info(`Creating property for company ID: ${company_id}`);
     const { title, description, property_type, address, city, state, zipcode, features, isManaged } = req.body;
 
     // Step 1: Create the property within the transaction
     const newProperty = await Property.create({
-      owner_id,
+      company_id,
       title,
       description,
       property_type,
@@ -59,13 +64,13 @@ exports.createProperty = async (req, res) => {
     // Step 4: Fetch the newly created property with its associations
     const propertyWithAssociations = await Property.findByPk(newProperty.id, {
       include: [
-        { model: User, as: 'owner' },
+        { model: Company, as: 'company' },
         { model: PropertyFeature, as: 'features' },
         { model: PropertyPhoto, as: 'photos' }
       ]
     });
 
-    logger.info(`New property created with ID: ${newProperty.id} by user ID: ${owner_id}`);
+    logger.info(`New property created with ID: ${newProperty.id} for company ID: ${company_id}`);
     res.status(201).json({ message: 'Property created successfully.', property: propertyWithAssociations });
 
   } catch (error) {
@@ -178,7 +183,7 @@ exports.searchAndFilterProperties = async (req, res) => {
           required: Object.keys(featureConditions).length > 0, // Only inner join if features are filtered
         },
         { model: PropertyPhoto, as: 'photos' },
-        { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
       ],
       order,
       limit,
@@ -210,7 +215,7 @@ exports.getPropertyById = async (req, res) => {
 
     const property = await Property.findByPk(id, {
       include: [
-        { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
         { model: PropertyFeature, as: 'features' },
         { model: PropertyPhoto, as: 'photos' },
         { model: db.Listing, as: 'listings' },
@@ -241,7 +246,7 @@ exports.getAllProperties = async (req, res) => {
     const properties = await Property.findAll({
 
       include: [
-        { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
         { model: PropertyFeature, as: 'features' },
         { model: PropertyPhoto, as: 'photos' },
       ],
@@ -256,17 +261,20 @@ exports.getAllProperties = async (req, res) => {
 };
 
 /**
- * Retrieves all properties (simple version, for backward compatibility).
+ * Retrieves all properties for the authenticated user's company.
  * @param {object} req - The request object.
  * @param {object} res - The response object.
  */
 exports.getAllOwnProperties = async (req, res) => {
   try {
-    const owner_id = req.user.id;
+    if (!req.user || !req.user.company_id) {
+      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+    }
+    const company_id = req.user.company_id;
     const properties = await Property.findAll({
-      where: { owner_id: owner_id },
+      where: { company_id: company_id },
       include: [
-        { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
         { model: PropertyFeature, as: 'features' },
         { model: PropertyPhoto, as: 'photos' },
       ],
@@ -275,7 +283,7 @@ exports.getAllOwnProperties = async (req, res) => {
 
     res.status(200).json(properties);
   } catch (error) {
-    logger.error('Error fetching all properties:', error);
+    logger.error('Error fetching properties for the company:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
@@ -299,10 +307,15 @@ exports.updateProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Check ownership: ensure the authenticated user owns this property .
-    if (property.owner_id !== req.user.id) {
+    if (!req.user || !req.user.company_id) {
       await transaction.rollback();
-      logger.warn(`Unauthorized attempt to update property ID ${id} by user ID ${req.user.id}.`);
+      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+    }
+
+    // Check company ownership: ensure the authenticated user's company owns this property.
+    if (property.company_id !== req.user.company_id) {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to update property ID ${id} by user from company ID ${req.user.company_id}.`);
       return res.status(403).json({ message: 'You are not authorized to update this property.' });
     }
 
@@ -325,13 +338,13 @@ exports.updateProperty = async (req, res) => {
     // Fetch the updated property with all its associations to match the createProperty response
     const updatedPropertyWithAssociations = await Property.findByPk(id, {
       include: [
-        { model: User, as: 'owner' },
+        { model: Company, as: 'company' },
         { model: PropertyFeature, as: 'features' },
         { model: PropertyPhoto, as: 'photos' }
       ]
     });
 
-    logger.info(`Property with ID ${id} updated successfully by user ID ${req.user.id}.`);
+    logger.info(`Property with ID ${id} updated successfully by user from company ID ${req.user.company_id}.`);
     res.status(200).json({ message: 'Property updated successfully.', property: updatedPropertyWithAssociations });
 
   } catch (error) {
@@ -370,10 +383,15 @@ exports.deletePhoto = async (req, res) => {
       return res.status(404).json({ message: 'Photo not found.' });
     }
 
-    // Security check: only the owner can delete a photo from their property.
-    if (photo.property.owner_id !== req.user.id) {
+    if (!req.user || !req.user.company_id) {
       await transaction.rollback();
-      logger.warn(`Unauthorized attempt to delete photo ID ${photoId} from property ID ${photo.property.id} by user ID ${req.user.id}.`);
+      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+    }
+
+    // Security check: only a user from the owning company can delete a photo from their property.
+    if (photo.property.company_id !== req.user.company_id) {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to delete photo ID ${photoId} from property ID ${photo.property.id} by user from company ID ${req.user.company_id}.`);
       return res.status(403).json({ message: 'You are not authorized to delete this photo.' });
     }
 
@@ -401,7 +419,7 @@ exports.deletePhoto = async (req, res) => {
     }
 
     await transaction.commit();
-    logger.info(`Photo with ID ${photoId} deleted successfully by user ID ${req.user.id}.`);
+    logger.info(`Photo with ID ${photoId} deleted successfully by user from company ID ${req.user.company_id}.`);
     res.status(200).json({ message: 'Photo deleted successfully.' });
 
   } catch (error) {
@@ -432,10 +450,15 @@ exports.deleteProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Check ownership: ensure the authenticated user owns this property or is an admin.
-    if (property.owner_id !== req.user.id) {
+    if (!req.user || !req.user.company_id) {
       await transaction.rollback();
-      logger.warn(`Unauthorized attempt to delete property ID ${id} by user ID ${req.user.id}.`);
+      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+    }
+
+    // Check company ownership: ensure the authenticated user's company owns this property.
+    if (property.company_id !== req.user.company_id) {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to delete property ID ${id} by user from company ID ${req.user.company_id}.`);
       return res.status(403).json({ message: 'You are not authorized to delete this property.' });
     }
 
@@ -452,7 +475,7 @@ exports.deleteProperty = async (req, res) => {
     await property.destroy({ transaction });
 
     await transaction.commit();
-    logger.info(`Property with ID ${id} deleted successfully by user ID ${req.user.id}.`);
+    logger.info(`Property with ID ${id} deleted successfully by user from company ID ${req.user.company_id}.`);
     res.status(200).json({ message: 'Property and its associated data deleted successfully.' });
 
   } catch (error) {
@@ -498,7 +521,7 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(400).json({ message: 'Maximum of 10 photos allowed per property.' });
     }
 
-    // Find the property to ensure it exists and to check ownership
+    // Find the property to ensure it exists and to check company ownership
     const property = await Property.findByPk(propertyId, { transaction });
     if (!property) {
       await transaction.rollback();
@@ -506,10 +529,15 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Security check: only the owner can add a photo to their property.
-    if (property.owner_id !== req.user.id) {
+    if (!req.user || !req.user.company_id) {
       await transaction.rollback();
-      logger.warn(`Unauthorized attempt to add a photo to property ID ${propertyId} by user ID ${req.user.id}.`);
+      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+    }
+
+    // Security check: only a user from the owning company can add a photo to their property.
+    if (property.company_id !== req.user.company_id) {
+      await transaction.rollback();
+      logger.warn(`Unauthorized attempt to add a photo to property ID ${propertyId} by user from company ID ${req.user.company_id}.`);
       return res.status(403).json({ message: 'You are not authorized to add photos to this property.' });
     }
 
@@ -524,7 +552,7 @@ exports.uploadPhoto = async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
-    logger.info(`Photo uploaded and linked to property ID ${propertyId} by user ID ${req.user.id}.`);
+    logger.info(`Photo uploaded and linked to property ID ${propertyId} by user from company ID ${req.user.company_id}.`);
     res.status(201).json({ message: 'Photo uploaded successfully.', photo: newPhoto });
 
   } catch (error) {

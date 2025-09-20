@@ -7,11 +7,11 @@ module.exports = (sequelize) => {
       autoIncrement: true,
       primaryKey: true,
     },
-    owner_id: {
+    company_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'users',
+        model: 'companies', // Assuming your company table is named 'companies'
         key: 'id',
       },
     },
@@ -56,7 +56,10 @@ module.exports = (sequelize) => {
   });
 
   Property.associate = (models) => {
-    Property.belongsTo(models.User, { foreignKey: 'owner_id', as: 'owner' });
+    // This association is now correct, linking Property to Company via company_id
+    Property.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
+    
+    // The original associations are still here
     Property.hasOne(models.PropertyFeature, { foreignKey: 'property_id', as: 'features', onDelete: 'CASCADE' });
     Property.hasMany(models.PropertyPhoto, { foreignKey: 'property_id', as: 'photos', onDelete: 'CASCADE' });
     Property.hasOne(models.Listing, { foreignKey: 'property_id', as: 'listings' });
