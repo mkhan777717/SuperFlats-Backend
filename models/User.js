@@ -54,6 +54,12 @@ module.exports = (sequelize) => {
     });
 
     User.associate = (models) => {
+        // When a User is deleted, their Listings are deleted.
+        User.hasMany(models.Listing, {
+            foreignKey: 'lister_id',
+            as: 'listings',
+            onDelete: 'CASCADE',
+        });
         User.hasMany(models.Property, {
             foreignKey: 'owner_id',
             as: 'properties',
@@ -65,16 +71,19 @@ module.exports = (sequelize) => {
         User.hasMany(models.Payment, {
             foreignKey: 'payer_id',
             as: 'payments',
+            onDelete: 'CASCADE',
         });
         User.hasMany(models.Appointment, {
             foreignKey: 'user_id',
             as: 'appointments',
+            onDelete: 'CASCADE',
         });
 
-        // The association with the Employee model is correct
+        // When a User is deleted, their Employee record is deleted.
         User.hasOne(models.Employee, {
             foreignKey: 'user_id',
             as: 'employee',
+            onDelete: 'CASCADE',
         });
 
         // Add the new association to the Company model

@@ -58,11 +58,26 @@ module.exports = (sequelize) => {
   Property.associate = (models) => {
     // This association is now correct, linking Property to Company via company_id
     Property.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
-    
+
     // The original associations are still here
-    Property.hasOne(models.PropertyFeature, { foreignKey: 'property_id', as: 'features', onDelete: 'CASCADE' });
-    Property.hasMany(models.PropertyPhoto, { foreignKey: 'property_id', as: 'photos', onDelete: 'CASCADE' });
-    Property.hasOne(models.Listing, { foreignKey: 'property_id', as: 'listings' });
+    // When a Property is deleted, its Features are deleted.
+    Property.hasOne(models.PropertyFeature, {
+      foreignKey: 'property_id',
+      as: 'features',
+      onDelete: 'CASCADE',
+    });
+    // When a Property is deleted, its Photos are deleted.
+    Property.hasMany(models.PropertyPhoto, {
+      foreignKey: 'property_id',
+      as: 'photos',
+      onDelete: 'CASCADE',
+    });
+    // When a Property is deleted, its Listing is deleted.
+    Property.hasOne(models.Listing, {
+      foreignKey: 'property_id',
+      as: 'listings',
+      onDelete: 'CASCADE',
+    });
   };
 
   return Property;

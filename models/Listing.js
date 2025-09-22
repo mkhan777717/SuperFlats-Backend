@@ -65,31 +65,34 @@ module.exports = (sequelize) => {
       foreignKey: 'lister_id',
       as: 'lister',
     });
-    
+
     // A listing belongs to a company.
     Listing.belongsTo(models.Company, {
       foreignKey: 'company_id',
       as: 'company',
     });
-    
-    // A listing can have many appointments.
+
+    // When a Listing is deleted, its Appointments are deleted.
     Listing.hasMany(models.Appointment, {
       foreignKey: 'listing_id',
       as: 'appointments',
+      onDelete: 'CASCADE',
     });
 
-    // A listing can have one lease.
+    // When a Listing is deleted, its Lease is deleted.
     Listing.hasOne(models.Lease, {
       foreignKey: 'listing_id',
       as: 'lease',
+      onDelete: 'CASCADE',
     });
 
-    // A listing can belong to many grouped listings.
+    // This is a many-to-many relationship, so onDelete: 'CASCADE' is applied to the join table.
     Listing.belongsToMany(models.GroupedListing, {
       through: models.GroupedListingItem,
       foreignKey: 'listing_id',
       otherKey: 'group_id',
       as: 'groups',
+      onDelete: 'CASCADE',
     });
   };
 

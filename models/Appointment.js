@@ -15,6 +15,10 @@ module.exports = (sequelize) => {
             type: DataTypes.INTEGER,
             allowNull: false,
         },
+        company_id: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
         employee_id: {
             type: DataTypes.INTEGER,
             allowNull: true, // This can be null until an employee is assigned
@@ -59,13 +63,19 @@ module.exports = (sequelize) => {
             onDelete: 'CASCADE',
         });
 
+        Appointment.belongsTo(models.Company, {
+            foreignKey: 'company_id',
+            as: 'company',
+            onDelete: 'CASCADE',
+        });
+
         // An appointment belongs to a specific listing
         Appointment.belongsTo(models.Listing, {
             foreignKey: 'listing_id',
             as: 'listing',
             onDelete: 'CASCADE',
         });
-        
+
         // An appointment belongs to an employee (the one who's assigned to it)
         Appointment.belongsTo(models.User, {
             foreignKey: 'employee_id',

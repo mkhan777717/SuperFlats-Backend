@@ -17,10 +17,23 @@ module.exports = (sequelize) => {
   });
 
   Company.associate = (models) => {
-    // A company can have many users (employees or admins)
+    // When a Company is deleted, its Users are deleted.
     Company.hasMany(models.User, {
       foreignKey: 'company_id',
       as: 'users',
+      onDelete: 'CASCADE',
+    });
+    // When a Company is deleted, its Listings are deleted.
+    Company.hasMany(models.Listing, {
+      foreignKey: 'company_id',
+      as: 'listings',
+      onDelete: 'CASCADE',
+    });
+    // When a Company is deleted, its Properties are deleted.
+    Company.hasMany(models.Property, {
+      foreignKey: 'company_id',
+      as: 'properties',
+      onDelete: 'CASCADE',
     });
     // A company can have many employees
     Company.hasMany(models.Employee, {
