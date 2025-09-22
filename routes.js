@@ -82,7 +82,7 @@ router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingC
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
 router.put('/appointments/:id/assign', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.assignEmployee); // New endpoint for assigning employee
-router.get('/appointments/me', authMiddleware, appointmentController.getUserAppointments);
+router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 'agent', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 
