@@ -1,4 +1,3 @@
-
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -13,6 +12,10 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     lister_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    company_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
@@ -61,6 +64,12 @@ module.exports = (sequelize) => {
     Listing.belongsTo(models.User, {
       foreignKey: 'lister_id',
       as: 'lister',
+    });
+    
+    // A listing belongs to a company.
+    Listing.belongsTo(models.Company, {
+      foreignKey: 'company_id',
+      as: 'company',
     });
     
     // A listing can have many appointments.

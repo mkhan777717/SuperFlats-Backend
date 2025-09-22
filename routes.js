@@ -72,6 +72,8 @@ router.delete(
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
 router.get('/listings/search', listingController.searchListings);
 router.get('/listings', listingController.getAllListings);
+router.get('/listings/me', authMiddleware, roleMiddleware('agent', 'admin'), listingController.getMyListings);
+router.get('/listings/properties', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getAvailablePropertiesForListing);
 router.get('/listings/:id', listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);

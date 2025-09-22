@@ -4,32 +4,40 @@ const { Op } = require('sequelize');
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
-const GroupedListing = db.GroupedListing;
-const GroupedListingItem = db.GroupedListingItem;
+const Company = db.Company;
+const PropertyFeature = db.PropertyFeature;
+const PropertyPhoto = db.PropertyPhoto;
+
 
 // Create a new listing
 exports.createListing = async (req, res) => {
     try {
         const { property_id, title, description, price, lease_expected_amount, deposit_expected_amount, status } = req.body;
-        const listerId = req.user.id; // Get lister ID from authenticated user
 
-        // Check if the property exists and belongs to the authenticated user
-        const property = await Property.findOne({ where: { id: property_id, owner_id: listerId } });
-        if (!property) {
-            return res.status(404).json({ message: 'Property not found or you are not the owner.' });
+        // Ensure user and company ID are available
+        if (!req.user || !req.user.id || !req.user.company_id) {
+            return res.status(401).json({ message: 'Authentication required or company not associated with user.' });
         }
 
-        // --- NEW VALIDATION ---
+        const listerId = req.user.id;
+        const companyId = req.user.company_id;
+
+        // Check if the property exists and belongs to the authenticated user's company
+        const property = await Property.findOne({ where: { id: property_id, company_id: companyId } });
+        if (!property) {
+            return res.status(404).json({ message: 'Property not found or it does not belong to your company.' });
+        }
+
         // Check if a listing for this property already exists
         const existingListing = await Listing.findOne({ where: { property_id } });
         if (existingListing) {
             return res.status(409).json({ message: 'A listing for this property already exists.' });
         }
-        // --- END OF NEW VALIDATION ---
 
         const newListing = await Listing.create({
             property_id,
             lister_id: listerId,
+            company_id: companyId,
             title,
             description,
             price,
@@ -38,7 +46,7 @@ exports.createListing = async (req, res) => {
             status,
         });
 
-        logger.info(`New listing created by user ${listerId} for property ${property_id}`);
+        logger.info(`New listing created by user ${listerId} for property ${property_id} and company ${companyId}`);
         res.status(201).json({ message: 'Listing created successfully.', listing: newListing });
     } catch (error) {
         logger.error('Error creating listing:', error);
@@ -54,6 +62,7 @@ exports.searchListings = async (req, res) => {
             max_price,
             status,
             keywords,
+            company_id,
             sort_by,
             sort_order,
             limit,
@@ -77,6 +86,11 @@ exports.searchListings = async (req, res) => {
         // Status filter
         if (status) {
             whereClause.status = status;
+        }
+
+        // Company filter
+        if (company_id) {
+            whereClause.company_id = company_id;
         }
 
         // Keyword search in title and description
@@ -121,11 +135,9 @@ exports.getAllListings = async (req, res) => {
     try {
         const listings = await Listing.findAll({
             include: [
-                {
-                    model: Property,
-                    as: 'property',
-                    include: ['photos'], // Include associated photos
-                },
+                { model: Property, as: 'property', include: ['photos', 'features'] },
+                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
+                { model: Company, as: 'company' },
             ],
             order: [['created_at', 'DESC']],
         });
@@ -136,6 +148,61 @@ exports.getAllListings = async (req, res) => {
     }
 };
 
+// Get My listings
+exports.getMyListings = async (req, res) => {
+    try {
+        if (!req.user || !req.user.company_id) {
+            return res.status(403).json({ message: 'User is not associated with a company.' });
+        }
+
+        const companyId = req.user.company_id;
+
+        const listings = await Listing.findAll({
+            where: { company_id: companyId },
+            include: [
+                { model: Property, as: 'property', include: ['photos', 'features'] },
+                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
+                { model: Company, as: 'company' },
+            ],
+            order: [['created_at', 'DESC']],
+        });
+
+        res.status(200).json(listings);
+    } catch (error) {
+        logger.error('Error fetching my listings:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+// Get available properties for listing
+exports.getAvailablePropertiesForListing = async (req, res) => {
+    try {
+        if (!req.user || !req.user.id || !req.user.company_id) {
+            return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+        }
+
+        const companyId = req.user.company_id;
+
+        // Fetch properties owned by the user's company that are not already listed
+        const properties = await Property.findAll({
+            where: {
+                company_id: companyId,
+                id: {
+                    [Op.notIn]: db.Sequelize.literal(`(SELECT property_id FROM listings)`),
+                },
+            }, include: [
+                { model: Company, as: 'company', attributes: ['id', 'name'] },
+                { model: PropertyFeature, as: 'features' },
+                { model: PropertyPhoto, as: 'photos' },
+            ]
+        });
+
+        res.status(200).json(properties);
+    } catch (error) {
+        logger.error('Error fetching available properties for listing:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
 // Get a single listing by ID
 exports.getListingById = async (req, res) => {
     try {
@@ -152,6 +219,7 @@ exports.getListingById = async (req, res) => {
                     as: 'lister',
                     attributes: { exclude: ['password'] },
                 },
+                { model: Company, as: 'company' },
             ],
         });
 
@@ -170,34 +238,39 @@ exports.getListingById = async (req, res) => {
 exports.updateListing = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Safely check for req.user and its properties
+        if (!req.user || !req.user.id || !req.user.company_id) {
+            return res.status(401).json({ message: 'Authentication required or company not associated with user.' });
+        }
+
         const listerId = req.user.id;
+        const listerCompanyId = req.user.company_id;
 
         const listing = await Listing.findOne({ where: { id } });
         if (!listing) {
             return res.status(404).json({ message: 'Listing not found.' });
         }
 
-        // Check if the authenticated user is the lister or an admin
-        const isAuthorized = listing.lister_id === listerId ;
+        // Check if the authenticated user is the lister and belongs to the same company
+        const isAuthorized = listing.lister_id === listerId && listing.company_id === listerCompanyId;
         if (!isAuthorized) {
             return res.status(403).json({ message: 'Forbidden: You do not have permission to update this listing.' });
         }
 
-        // --- NEW VALIDATION ---
         // If property_id is being updated, check for duplicates
         if (req.body.property_id && req.body.property_id !== listing.property_id) {
             const existingListing = await Listing.findOne({
                 where: {
                     property_id: req.body.property_id,
-                    id: { [Op.ne]: id } // Exclude the current listing
+                    id: { [Op.ne]: id }
                 }
             });
             if (existingListing) {
                 return res.status(409).json({ message: 'A listing for this property already exists.' });
             }
         }
-        // --- END OF NEW VALIDATION ---
-        
+
         await listing.update(req.body);
 
         logger.info(`Listing ${id} updated by user ${listerId}`);
@@ -212,15 +285,22 @@ exports.updateListing = async (req, res) => {
 exports.deleteListing = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Safely check for req.user and its properties
+        if (!req.user || !req.user.id || !req.user.company_id) {
+            return res.status(401).json({ message: 'Authentication required or company not associated with user.' });
+        }
+
         const listerId = req.user.id;
+        const listerCompanyId = req.user.company_id;
 
         const listing = await Listing.findOne({ where: { id } });
         if (!listing) {
             return res.status(404).json({ message: 'Listing not found.' });
         }
 
-        // Check if the authenticated user is the lister or an admin
-        const isAuthorized = listing.lister_id === listerId ;
+        // Check if the authenticated user is the lister and belongs to the same company
+        const isAuthorized = listing.lister_id === listerId && listing.company_id === listerCompanyId;
         if (!isAuthorized) {
             return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this listing.' });
         }
