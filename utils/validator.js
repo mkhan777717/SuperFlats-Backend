@@ -9,6 +9,9 @@ const userRegistrationSchema = Joi.object({
     'string.pattern.base': 'Phone number must contain only numbers.'
   }),
 });
+const updateAppointmentStatusSchema = Joi.object({
+  status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').required(),
+});
 
 // Joi schema for creating a new property
 const createPropertySchema = Joi.object({
@@ -123,5 +126,6 @@ module.exports = {
   createTenantSchema,
   updateTenantSchema,
   createLeaseSchema,
-  updateLeaseSchema
+  updateLeaseSchema,
+  updateAppointmentStatusSchema
 };

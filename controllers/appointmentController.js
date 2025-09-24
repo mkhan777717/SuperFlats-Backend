@@ -5,6 +5,7 @@ const Appointment = db.Appointment;
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
+const { updateAppointmentStatusSchema } = require('../utils/validator');
 
 // Create a new appointment with 'non_assigned' status
 exports.createAppointment = async (req, res) => {
@@ -111,11 +112,10 @@ exports.updateAppointmentStatus = async (req, res) => {
     const { status } = req.body;
     const { id: userId, role: userRole, company_id: userCompanyId } = req.user;
 
-    const allowedStatuses = ['confirmed', 'cancelled', 'completed'];
-    if (!allowedStatuses.includes(status)) {
+    const { error } = updateAppointmentStatusSchema.validate(req.body);
+    if (error) {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` });
     }
-
     const appointment = await Appointment.findByPk(id);
     if (!appointment) {
       return res.status(404).json({ message: 'Appointment not found.' });
@@ -225,6 +225,40 @@ exports.getAppointmentById = async (req, res) => {
     res.status(200).json(fullAppointment);
   } catch (error) {
     logger.error(`Error fetching appointment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+// Delete an appointment
+exports.deleteAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role: userRole, company_id: userCompanyId } = req.user;
+
+    // Authorization: Only admins and agents are allowed to delete appointments
+    if (userRole !== 'admin' && userRole !== 'agent') {
+      return res.status(403).json({ message: 'You are not authorized to delete appointments.' });
+    }
+
+    const appointment = await Appointment.findByPk(id);
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found.' });
+    }
+
+    // SECURITY CHECK: Ensure the appointment belongs to the user's company
+    if (appointment.company_id !== userCompanyId) {
+      logger.warn(`User from company ${userCompanyId} tried to delete appointment ${id} from a different company.`);
+      return res.status(403).json({ message: 'You are not authorized to delete this appointment.' });
+    }
+
+    // Delete the appointment
+    await appointment.destroy();
+
+    logger.info(`Appointment ${id} deleted successfully by user from company ${userCompanyId}.`);
+    res.status(200).json({ message: 'Appointment deleted successfully.' });
+
+  } catch (error) {
+    logger.error(`Error deleting appointment ${req.params.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };

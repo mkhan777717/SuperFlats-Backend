@@ -36,7 +36,7 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: 'non_assigned',
             validate: {
-                isIn: [['non_assigned', 'assigned', 'pending', 'confirmed', 'cancelled', 'completed']],
+                isIn: [[ 'pending', 'confirmed', 'cancelled', 'completed']],
             },
         },
         created_at: {
