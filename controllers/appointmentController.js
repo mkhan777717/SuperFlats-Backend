@@ -31,8 +31,6 @@ exports.createAppointment = async (req, res) => {
         [Op.or]: [
           { status: 'pending' },
           { status: 'confirmed' },
-          { status: 'assigned' },
-          { status: 'non_assigned' }
         ]
       }
     });
@@ -47,7 +45,7 @@ exports.createAppointment = async (req, res) => {
       user_id: userId,
       company_id: companyId, // Associate the appointment with the listing's company
       scheduled_at,
-      status: 'non_assigned',
+      status: 'pending',
     });
 
     logger.info(`New appointment created for user ${userId} on listing ${listing_id}`);
@@ -59,7 +57,7 @@ exports.createAppointment = async (req, res) => {
   }
 };
 
-// Assign an employee to a 'non_assigned' appointment
+// Assign an employee to an appointment without changing status
 exports.assignEmployee = async (req, res) => {
   try {
     const { id } = req.params;
@@ -82,22 +80,38 @@ exports.assignEmployee = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to manage this appointment.' });
     }
 
-    // An employee can only be assigned to a 'non_assigned' appointment
-    if (appointment.status !== 'non_assigned') {
-      return res.status(400).json({ message: 'This appointment has already been assigned or handled.' });
-    }
+    // No need for status check if you're not changing the status
+    // If you want to prevent changes on 'cancelled' or 'completed'
+    // you would add a check here, for example:
+    // if (appointment.status === 'cancelled' || appointment.status === 'completed') {
+    //   return res.status(400).json({ message: 'Cannot assign employee to a cancelled or completed appointment.' });
+    // }
 
-    const employee = await User.findByPk(employee_id);
-    if (!employee || employee.role !== 'agent' || employee.company_id !== userCompanyId) {
-      return res.status(404).json({ message: 'Employee not found, invalid role, or belongs to a different company.' });
-    }
 
+    // 1. Update ONLY the employee_id
     appointment.employee_id = employee_id;
-    appointment.status = 'assigned';
+    // 2. Remove the line that updates the status
     await appointment.save();
 
+    // 3. IMPORTANT: Fetch the updated appointment with its associations
+    const updatedAppointment = await Appointment.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'profile_image', 'phone_number', 'role'] // Corrected field name
+        },
+        {
+          model: User,
+          as: 'employee',
+          attributes: ['id', 'name', 'email', 'profile_image', 'phone_number', 'role'] // Corrected field name
+        }
+      ]
+    });
+
     logger.info(`Appointment ${id} assigned to employee ${employee_id} by user from company ${userCompanyId}.`);
-    res.status(200).json({ message: 'Appointment assigned successfully.', appointment });
+    // 4. Send the complete, updated appointment object
+    res.status(200).json({ message: 'Appointment assigned successfully.', appointment: updatedAppointment });
 
   } catch (error) {
     logger.error(`Error assigning employee to appointment ${req.params.id}:`, error);
@@ -152,9 +166,12 @@ exports.updateAppointmentStatus = async (req, res) => {
 };
 
 // Get all appointments for a user or company
+// Get all appointments for a user or company with optional filters
 exports.getAppointments = async (req, res) => {
   try {
     const { id: userId, role: userRole, company_id: userCompanyId } = req.user;
+    // Extract the optional employeeId from the query parameters
+    const { employeeId } = req.query;
 
     let whereClause = {};
     if (userRole === 'client') {
@@ -168,6 +185,12 @@ exports.getAppointments = async (req, res) => {
       whereClause = { company_id: userCompanyId };
     }
 
+    // New logic: If an employeeId is provided, filter the appointments
+    // This is only allowed for admins/agents who can manage others' schedules
+    if (employeeId && (userRole === 'admin' || userRole === 'agent')) {
+      whereClause.employee_id = employeeId;
+    }
+
     const appointments = await Appointment.findAll({
       where: whereClause,
       include: [
@@ -179,7 +202,7 @@ exports.getAppointments = async (req, res) => {
     });
 
     if (!appointments.length) {
-      logger.info(`No appointments found for user ${userId} in company ${userCompanyId}.`);
+      logger.info(`No appointments found for the applied criteria.`);
       return res.status(200).json([]);
     }
 
@@ -259,6 +282,82 @@ exports.deleteAppointment = async (req, res) => {
 
   } catch (error) {
     logger.error(`Error deleting appointment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+
+// The corrected updateAppointment function
+exports.updateAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { listing_id, scheduled_at } = req.body;
+    const { role: userRole, company_id: userCompanyId } = req.user;
+
+
+    // Authorization: Only admins and agents can update appointments
+    if (userRole !== 'admin' && userRole !== 'agent') {
+      return res.status(403).json({ message: 'You are not authorized to update appointments.' });
+    }
+
+    const appointment = await Appointment.findByPk(id);
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found.' });
+    }
+
+    // SECURITY CHECK: Ensure the appointment belongs to the user's company
+    if (appointment.company_id !== userCompanyId) {
+      logger.warn(`User from company ${userCompanyId} tried to update appointment ${id} from a different company.`);
+      return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
+    }
+
+    // Check if the new listing exists and is active (if listing_id is provided)
+    if (listing_id) {
+      const listing = await Listing.findByPk(listing_id);
+      if (!listing || listing.status !== 'active') {
+        return res.status(404).json({ message: 'The new listing is not found or is not active.' });
+      }
+    }
+
+    // Check for a scheduling conflict for the new date/time on the same or new listing
+    if (scheduled_at || listing_id) {
+      const targetListingId = listing_id || appointment.listing_id;
+      const targetScheduledAt = scheduled_at || appointment.scheduled_at;
+
+      const existingAppointment = await Appointment.findOne({
+        where: {
+          listing_id: targetListingId,
+          scheduled_at: targetScheduledAt,
+          id: { [Op.not]: id }, // Exclude the current appointment from the check
+          [Op.or]: [
+            { status: 'pending' },
+            { status: 'confirmed' },
+          ],
+        },
+      });
+
+      if (existingAppointment) {
+        return res.status(409).json({ message: 'This time slot is already booked for this listing. Please choose a different time.' });
+      }
+    }
+
+    // Update fields if they are provided in the request body
+    if (listing_id) {
+      appointment.listing_id = listing_id;
+    }
+
+    if (scheduled_at) {
+      // Corrected logic: create a new Date object from the string and then format it
+      const date = new Date(scheduled_at);
+      appointment.scheduled_at = date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+
+    await appointment.save();
+
+    logger.info(`Appointment ${id} updated by user from company ${userCompanyId}.`);
+    res.status(200).json({ message: 'Appointment updated successfully.', appointment });
+  } catch (error) {
+    logger.error(`Error updating appointment ${req.params.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };

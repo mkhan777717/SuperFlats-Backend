@@ -7,7 +7,7 @@ const authController = require('./controllers/authController');
 const propertyController = require('./controllers/propertyController');
 const appointmentController = require('./controllers/appointmentController');
 const groupedListingController = require('./controllers/groupedListingController');
-const paymentController = require('./controllers/paymentController');
+// const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
 const listingController = require('./controllers/listingController');
 const leaseController = require('./controllers/leaseController');
@@ -81,6 +81,7 @@ router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingC
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
+router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.updateAppointment)
 router.put('/appointments/:id/assign', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.assignEmployee); // New endpoint for assigning employee
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 'agent', 'admin'), appointmentController.updateAppointmentStatus);
