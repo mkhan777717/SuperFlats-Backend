@@ -123,7 +123,7 @@ router.delete('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), l
 router.post('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.createTenant);
 router.get('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.getAllTenants);
 router.get('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.getTenantById);
-router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.updateTenantProfile);
+router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.updateTenant);
 router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.deleteTenant);
 
 // -------------------- Ledger Routes (Admin-Only) --------------------

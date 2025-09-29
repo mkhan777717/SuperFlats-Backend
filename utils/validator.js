@@ -30,7 +30,7 @@ const createPropertySchema = Joi.object({
     parking: Joi.boolean(),
     amenities: Joi.array(),
   }).optional(),
-  isManaged: Joi.boolean()
+  is_managed: Joi.boolean()
 });
 
 // Joi schema for creating a new listing
@@ -52,7 +52,7 @@ const createTenantSchema = Joi.object({
   phone_number: Joi.string().pattern(/^[0-9]+$/).optional().messages({
     'string.pattern.base': 'Phone number must contain only numbers.'
   }),
-  joinDate: Joi.date().iso().optional(),
+  joined_at: Joi.date().iso().optional(),
 });
 
 // Joi schema for updating a tenant
@@ -62,7 +62,7 @@ const updateTenantSchema = Joi.object({
     'string.pattern.base': 'Phone number must contain only numbers.'
   }),
   email: Joi.string().email().optional(),
-  joinDate: Joi.date().iso().optional(),
+  joined_at: Joi.date().iso().optional(),
 });
 
 // Joi schema for employee creation data

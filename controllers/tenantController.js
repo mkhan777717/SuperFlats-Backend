@@ -22,14 +22,14 @@ exports.createTenant = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { name, phone_number, email, joinDate } = value;
+    const { name, phone_number, email, joined_at } = value;
 
-    // Create a new tenant record, using the provided joinDate or defaulting to now
+    // FIX: Directly use the UTC string from the client
     const newTenant = await Tenant.create({
       name,
       phone_number,
       email,
-      joinDate: joinDate || new Date(),
+      joined_at, // Use the ISO 8601 string directly
       created_at: new Date()
     }, { transaction });
 
@@ -106,10 +106,10 @@ exports.getAllTenants = async (req, res) => {
 
     const tenants = await Tenant.findAll({
       where: whereCondition,
-      attributes: ['id', 'name', 'email', 'phone_number', 'joinDate', 'created_at'],
+      attributes: ['id', 'name', 'email', 'phone_number', 'joined_at', 'created_at'],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['joinDate', 'DESC']],
+      order: [['joined_at', 'DESC']],
     });
 
     logger.info(`Retrieved ${tenants.length} tenant profiles by user ${req.user.id}.`);
@@ -127,28 +127,27 @@ exports.getAllTenants = async (req, res) => {
  * @param {object} req - The request object.
  * @param {object} res - The response object.
  */
-exports.updateTenantProfile = async (req, res) => {
+exports.updateTenant = async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = updateTenantSchema.validate(req.body);
+    const { error, value } = updateTenantSchema.validate(req.body);
     if (error) {
       logger.warn(`Validation failed during tenant update: ${error.details[0].message}`);
       return res.status(400).json({ message: error.details[0].message });
     }
+    console.log(value.joined_at)
+    const tenant = await Tenant.findByPk(id);
 
-    // FIX: Find the tenant first, then update the instance.
-    const profile = await Tenant.findByPk(id);
-
-    if (!profile) {
+    if (!tenant) {
       logger.warn(`Tenant profile with ID ${id} not found for update.`);
       return res.status(404).json({ message: 'Tenant profile not found.' });
     }
 
-    // Update the profile instance
-    await profile.update(req.body);
+    // FIX: Directly use the UTC string from the client
+    await tenant.update(value);
 
     logger.info(`Tenant profile with ID ${id} updated successfully by user ${req.user.id}.`);
-    res.status(200).json({ message: 'Profile updated successfully.', profile: profile });
+    res.status(200).json({ message: 'Profile updated successfully.', tenant: tenant });
 
   } catch (error) {
     logger.error(`Error updating tenant profile with ID ${req.params.id}:`, error);

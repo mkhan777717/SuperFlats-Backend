@@ -35,7 +35,7 @@ exports.createProperty = async (req, res) => {
     }
     const company_id = req.user.company_id;
     logger.info(`Creating property for company ID: ${company_id}`);
-    const { title, description, property_type, address, city, state, zipcode, features, isManaged } = req.body;
+    const { title, description, property_type, address, city, state, zipcode, features, is_managed } = req.body;
 
     // Step 1: Create the property within the transaction
     const newProperty = await Property.create({
@@ -47,7 +47,7 @@ exports.createProperty = async (req, res) => {
       city,
       state,
       zipcode,
-      isManaged,
+      is_managed,
     }, { transaction });
 
     // Step 2: Create associated features within the same transaction
@@ -105,10 +105,10 @@ const buildQueryConditions = (query) => {
   if (query.type) {
     conditions.property_type = { [Op.like]: `%${query.type}%` };
   }
-  if (query.isManaged !== undefined) {
+  if (query.is_managed !== undefined) {
     // Ensure the string 'true' or 'false' is converted to a boolean value.
-    const isManagedValue = JSON.parse(query.isManaged.toLowerCase());
-    conditions.isManaged = isManagedValue;
+    const isManagedValue = JSON.parse(query.is_managed.toLowerCase());
+    conditions.is_managed = isManagedValue;
   }
 
   // UPDATED: Add fuzzy search logic using SOUNDEX

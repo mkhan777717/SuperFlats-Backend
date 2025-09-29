@@ -43,7 +43,7 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
 
-    isManaged: {
+    is_managed: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false
