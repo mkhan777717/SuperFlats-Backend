@@ -11,9 +11,17 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: false,
         },
-        contact_info: {
+        email: {
             type: DataTypes.STRING,
-            allowNull: true,
+            allowNull: false,
+            unique: true,
+            validate: {
+                isEmail: true,
+            },
+        },
+        phone_number: {
+            type: DataTypes.STRING,
+            allowNull: false,
         },
         joinDate: {
             type: DataTypes.DATE,

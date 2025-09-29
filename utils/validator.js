@@ -48,14 +48,20 @@ const createListingSchema = Joi.object({
 // Joi schema for creating a new tenant
 const createTenantSchema = Joi.object({
   name: Joi.string().required(),
-  contact_info: Joi.string().allow('').optional(),
+  email: Joi.string().email().optional(),
+  phone_number: Joi.string().pattern(/^[0-9]+$/).optional().messages({
+    'string.pattern.base': 'Phone number must contain only numbers.'
+  }),
   joinDate: Joi.date().iso().optional(),
 });
 
 // Joi schema for updating a tenant
 const updateTenantSchema = Joi.object({
   name: Joi.string().optional(),
-  contact_info: Joi.string().allow('').optional(),
+  phone_number: Joi.string().pattern(/^[0-9]+$/).optional().messages({
+    'string.pattern.base': 'Phone number must contain only numbers.'
+  }),
+  email: Joi.string().email().optional(),
   joinDate: Joi.date().iso().optional(),
 });
 

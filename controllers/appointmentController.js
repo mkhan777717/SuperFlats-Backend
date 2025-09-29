@@ -165,7 +165,6 @@ exports.updateAppointmentStatus = async (req, res) => {
   }
 };
 
-// Get all appointments for a user or company
 // Get all appointments for a user or company with optional filters
 exports.getAppointments = async (req, res) => {
   try {

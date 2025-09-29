@@ -22,12 +22,13 @@ exports.createTenant = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { name, contact_info, joinDate } = value;
-    
+    const { name, phone_number, email, joinDate } = value;
+
     // Create a new tenant record, using the provided joinDate or defaulting to now
     const newTenant = await Tenant.create({
       name,
-      contact_info,
+      phone_number,
+      email,
       joinDate: joinDate || new Date(),
       created_at: new Date()
     }, { transaction });
@@ -98,13 +99,14 @@ exports.getAllTenants = async (req, res) => {
     if (search) {
       whereCondition[Op.or] = [
         { name: { [Op.like]: `%${search}%` } },
-        { contact_info: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } }, // UPDATED: Search by email
+        { phone_number: { [Op.like]: `%${search}%` } }, // UPDATED: Search by phone_number
       ];
     }
 
     const tenants = await Tenant.findAll({
       where: whereCondition,
-      attributes: ['id', 'name', 'contact_info', 'joinDate', 'created_at'],
+      attributes: ['id', 'name', 'email', 'phone_number', 'joinDate', 'created_at'],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['joinDate', 'DESC']],
@@ -114,8 +116,8 @@ exports.getAllTenants = async (req, res) => {
     res.status(200).json(tenants);
 
   } catch (error) {
-      logger.error('Error fetching all tenant profiles:', error);
-      res.status(500).json({ error: 'Internal server error.' });
+    logger.error('Error fetching all tenant profiles:', error);
+    res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
