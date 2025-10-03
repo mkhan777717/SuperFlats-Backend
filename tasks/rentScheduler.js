@@ -1,0 +1,114 @@
+// tasks/rentScheduler.js (Restored for Production Monthly Use)
+const cron = require('node-cron');
+const db = require('../models');
+const { Op } = require('sequelize');
+const Lease = db.Lease;
+const Ledger = db.Ledger;
+const LedgerEntry = db.LedgerEntry;
+const logger = require('../utils/logger');
+
+/**
+ * Creates a monthly rent charge entry for all active leases.
+ */
+const createMonthlyRentCharge = async () => {
+    const transaction = await db.sequelize.transaction();
+    const now = new Date();
+    const currentMonth = now.toLocaleString('default', { month: 'long' });
+    const currentYear = now.getFullYear();
+    
+    // Define the date range for the current month
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of the current month
+
+    try {
+        // 1. Find all active leases
+        const activeLeases = await Lease.findAll({
+            where: {
+                status: 'active',
+                start_date: { [Op.lte]: now },
+                [Op.or]: [
+                    { end_date: { [Op.is]: null } },
+                    { end_date: { [Op.gte]: now } }
+                ],
+            },
+            attributes: ['id', 'tenant_id', 'monthly_rent'],
+            transaction,
+        });
+
+        let newChargesCount = 0;
+
+        // 2. Process active leases
+        for (const lease of activeLeases) {
+            const tenantId = lease.tenant_id;
+            const rentAmount = parseFloat(lease.monthly_rent);
+
+            // ⚠️ PRODUCTION FIX: Check if rent has ALREADY been charged this month
+            const existingCharge = await LedgerEntry.findOne({
+                where: {
+                    tenant_id: tenantId,
+                    type: 'expense',
+                    category: 'Rent', // Assuming 'Rent' is the production category
+                    date: { [Op.between]: [monthStart, monthEnd] }
+                },
+                transaction
+            });
+
+            if (existingCharge) {
+                logger.info(`Scheduler: Rent already charged for tenant ${tenantId} for ${currentMonth}. Skipping.`);
+                continue; // Skip this tenant if charge exists
+            }
+            // ⚠️ END FIX
+
+            const tenantLedger = await Ledger.findOne({
+                where: { tenant_id: tenantId },
+                transaction
+            });
+
+            if (!tenantLedger) {
+                logger.warn(`Scheduler: Ledger not found for tenant ${tenantId}. Skipping rent charge.`);
+                continue;
+            }
+
+            // A. Create the new LedgerEntry
+            await LedgerEntry.create({
+                tenant_id: tenantId,
+                // Restored description for production
+                description: `Monthly Rent Charge (${currentMonth} ${currentYear})`,
+                amount: rentAmount,
+                type: 'expense',
+                category: 'Rent', // Restored category for production
+                date: now.toISOString().split('T')[0],
+            }, { transaction });
+
+            // B. Update the Ledger balance
+            let newBalance = parseFloat(tenantLedger.balance) - rentAmount;
+            await tenantLedger.update({ balance: newBalance }, { transaction });
+
+            newChargesCount++;
+        }
+
+        await transaction.commit();
+        logger.info(`Scheduler: Successfully created ${newChargesCount} rent charges for ${currentMonth}.`);
+
+    } catch (error) {
+        if (transaction.finished !== 'commit') {
+            await transaction.rollback();
+        }
+        logger.error('CRON JOB ERROR: Failed to create monthly rent charges:', error);
+    }
+};
+
+/**
+ * Schedules the task to run at 00:00 (midnight) on the 1st day of every month.
+ */
+exports.startRentScheduler = () => {
+    // ✅ Restored cron expression for the 1st of every month
+    cron.schedule('0 0 1 * *', () => { 
+        logger.info('Scheduler: Running monthly rent charge job.');
+        createMonthlyRentCharge();
+    }, {
+        timezone: "UTC" // Ensures consistent execution time worldwide
+    });
+    // ✅ Restored log message
+    logger.info('Scheduler: Monthly rent charge job started (Runs 1st of month at 00:00 UTC).');
+};

@@ -13,6 +13,8 @@ const db = require('./models');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const logger = require('./utils/logger');
+const rentScheduler = require('./tasks/rentScheduler');
+
 
 // Middleware
 app.use(express.json()); // Allows the app to parse JSON from the request body
@@ -44,4 +46,5 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
+  rentScheduler.startRentScheduler();
 });
