@@ -44,9 +44,18 @@ module.exports = (sequelize) => {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
     },
+    deposit: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0.00,
+      field: 'security_deposit', // Optional: use a more explicit column name if desired, or stick to 'deposit'
+    },
     status: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        isIn: [['active', 'in_active']],
+      },
       defaultValue: 'active',
     },
   }, {
@@ -75,11 +84,7 @@ module.exports = (sequelize) => {
       as: 'listing'
     });
 
-    // A Lease can have many Payments
-    Lease.hasMany(models.Payment, {
-      foreignKey: 'lease_id',
-      as: 'payments'
-    });
+
   };
 
   return Lease;

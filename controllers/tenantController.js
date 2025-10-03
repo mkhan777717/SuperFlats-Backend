@@ -1,5 +1,5 @@
 const db = require('../models');
-const { Op } = require('sequelize');
+const { Op, UniqueConstraintError, DatabaseError } = require('sequelize'); // 👈 Import specific error classes
 const logger = require('../utils/logger');
 const Tenant = db.Tenant;
 const Lease = db.Lease;
@@ -24,12 +24,11 @@ exports.createTenant = async (req, res) => {
 
     const { name, phone_number, email, joined_at } = value;
 
-    // FIX: Directly use the UTC string from the client
     const newTenant = await Tenant.create({
       name,
       phone_number,
       email,
-      joined_at, // Use the ISO 8601 string directly
+      joined_at,
       created_at: new Date()
     }, { transaction });
 
@@ -41,6 +40,22 @@ exports.createTenant = async (req, res) => {
     if (transaction.finished !== 'commit') {
       await transaction.rollback();
     }
+
+    // 🎯 ERROR HANDLING FIX: Check for the specific unique constraint error
+    if (error instanceof UniqueConstraintError) {
+      const field = Object.keys(error.fields)[0]; // Get the field that caused the error (e.g., 'email')
+      const value = error.fields[field]; // Get the value that caused the error
+
+      logger.warn(`Tenant creation failed due to duplicate ${field}: ${value}`);
+
+      // Return 409 Conflict for resource duplication
+      return res.status(409).json({
+        message: `The provided ${field} is already in use by another tenant.`,
+        field,
+        value
+      });
+    }
+
     logger.error('Error creating tenant:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }

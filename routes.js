@@ -115,9 +115,13 @@ router.delete('/grouped-listings/:id', authMiddleware, roleMiddleware('admin'), 
 // -------------------- Lease Routes --------------------
 router.post('/leases', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.createLease);
 router.get('/leases', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getAllLeases);
-router.get('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getLeaseById);
-router.put('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.updateLease);
+router.patch('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.updateLease);
 router.delete('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.deleteLease);
+router.get('/leases/tenants', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.getAvailableTenants);
+router.get('/leases/listings', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.getAvailableListings);
+router.get('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getLeaseById);
+
+
 
 // -------------------- Tenant Routes --------------------
 router.post('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.createTenant);

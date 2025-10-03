@@ -19,7 +19,7 @@ exports.createLease = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id: userId } = req.user;
-    const { listing_id, tenant_id, start_date, end_date, rent_amount, security_deposit } = req.body;
+    const { listing_id, tenant_id, start_date, end_date, monthly_rent, security_deposit } = req.body;
 
     const { error } = createLeaseSchema.validate(req.body);
     if (error) {
@@ -28,9 +28,29 @@ exports.createLease = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Find the listing and its associated property
+    // 🎯 CRITICAL CHECK: Does the tenant already have an active, unexpired lease?
+    const existingActiveLease = await Lease.findOne({
+      where: {
+        tenant_id,
+        status: 'active',
+        end_date: {
+          [Op.gte]: new Date(), // Lease is still active today or in the future
+        },
+      },
+      transaction,
+    });
+
+    if (existingActiveLease) {
+      await transaction.rollback();
+      logger.warn(`Tenant ${tenant_id} already has an active lease (${existingActiveLease.id}).`);
+      return res.status(400).json({ message: 'The selected tenant already has an active lease and cannot be assigned a new one.' });
+    }
+    // END CRITICAL CHECK
+
+    // 1. Find Listing and Property (Already done)
     const listing = await Listing.findByPk(listing_id, {
-      include: [{ model: Property, as: 'property' }]
+      include: [{ model: Property, as: 'property' }],
+      transaction, // Ensure it's part of the transaction
     });
 
     if (!listing) {
@@ -38,31 +58,31 @@ exports.createLease = async (req, res) => {
       return res.status(404).json({ message: 'Listing not found.' });
     }
 
-
-
-    // Additional validation
     if (listing.status === 'closed') {
       await transaction.rollback();
       return res.status(400).json({ message: 'This listing is already leased and cannot be leased again.' });
     }
 
-    const tenant = await Tenant.findByPk(tenant_id);
+    // 2. Find Tenant (Already done)
+    const tenant = await Tenant.findByPk(tenant_id, { transaction });
     if (!tenant) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Tenant record not found.' });
     }
 
+    // 3. Create the Lease
     const newLease = await Lease.create({
       property_id: listing.property.id,
       listing_id: listing.id,
       tenant_id,
       start_date,
       end_date,
-      monthly_rent: rent_amount,
+      monthly_rent: monthly_rent,
       deposit: security_deposit,
       status: 'active',
     }, { transaction });
 
+    // 4. Update Ledger and Listing Status (Already done)
     const [ledger, created] = await Ledger.findOrCreate({
       where: { tenant_id },
       defaults: {
@@ -74,16 +94,38 @@ exports.createLease = async (req, res) => {
     });
 
     await ledger.update({
-      balance: parseFloat(ledger.balance) + parseFloat(rent_amount),
       deposit: parseFloat(ledger.deposit) + parseFloat(security_deposit)
     }, { transaction });
 
-    // Update the listing status to 'closed'
     await listing.update({ status: 'closed' }, { transaction });
+
+    // 🎯 5. Fetch the newly created lease with all required associations
+    const completeLease = await Lease.findByPk(newLease.id, {
+      include: [
+        {
+          model: Listing,
+          as: 'listing',
+          // Include the Property model, making sure to use its correct alias if needed
+          include: [{ model: Property, as: 'property' }]
+        },
+        {
+          model: Tenant,
+          as: 'tenant',
+          attributes: ['id', 'name', 'phone_number', 'email']
+        },
+      ],
+      transaction,
+    });
+
 
     logger.info(`New lease created for listing ${listing_id} with tenant ${tenant_id} by user ID ${userId}.`);
     await transaction.commit();
-    res.status(201).json({ message: 'Lease created successfully.', lease: newLease });
+
+    // 6. Return the fully associated lease object
+    res.status(201).json({
+      message: 'Lease created successfully.',
+      lease: completeLease
+    });
 
   } catch (error) {
     if (transaction.finished !== 'commit') {
@@ -108,7 +150,7 @@ exports.getLeaseById = async (req, res) => {
       include: [
         { model: Listing, as: 'listing', include: [{ model: Property, as: 'property' }] },
         // Use the Tenant model for the association
-        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'contact_info'] },
+        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number', 'email'] },
       ],
     });
 
@@ -157,13 +199,91 @@ exports.getAllLeases = async (req, res) => {
       include: [
         { model: Listing, as: 'listing', include: [{ model: Property, as: 'property' }] },
         // Use the Tenant model for the association
-        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'contact_info'] },
+        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number', 'email'] },
       ],
     });
 
     res.status(200).json(leases);
   } catch (error) {
     logger.error('Error fetching all leases:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+/**
+ * Retrieves all available (active) listings that can be leased.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
+exports.getAvailableListings = async (req, res) => {
+  try {
+    const availableListings = await Listing.findAll({
+      where: {
+        status: 'active' // Only listings that are currently available
+      },
+      include: [
+        {
+          model: Property,
+          as: 'property',
+          attributes: ['id', 'title', 'address', 'city', 'state'] // Limit fields for a cleaner list
+        },
+        {
+          model: User,
+          as: 'lister',
+          attributes: ['id', 'name', 'email']
+        }
+      ],
+      attributes: ['id', 'title', 'description', 'price', 'lease_expected_amount', 'deposit_expected_amount'],
+      order: [['created_at', 'DESC']],
+    });
+
+    logger.info(`Retrieved ${availableListings.length} available listings for leasing.`);
+    res.status(200).json(availableListings);
+
+  } catch (error) {
+    logger.error('Error fetching available listings:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+/**
+ * Retrieves all tenant entities that can be assigned a new lease.
+ * Excludes tenants who currently have an active lease.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
+exports.getAvailableTenants = async (req, res) => {
+  try {
+    // 1. Find IDs of tenants with an active lease that hasn't expired
+    const activeLeaseTenantIds = await Lease.findAll({
+      attributes: ['tenant_id'],
+      where: {
+        status: 'active',
+        // Ensure the end_date is in the future or today
+        end_date: {
+          [Op.gte]: new Date(),
+        },
+      },
+      // Important: Use distinct to get unique tenant IDs
+      group: ['tenant_id'],
+      raw: true, // Return plain objects for simplicity
+    }).then(leases => leases.map(lease => lease.tenant_id));
+
+    // 2. Find all Tenants, excluding those with an active lease
+    const tenants = await Tenant.findAll({
+      attributes: ['id', 'name', 'email', 'phone_number'],
+      where: {
+        id: {
+          [Op.notIn]: activeLeaseTenantIds,
+        },
+      },
+      order: [['name', 'ASC']],
+    });
+
+    logger.info(`Retrieved ${tenants.length} available tenants (excluding those with active leases).`);
+    res.status(200).json(tenants);
+
+  } catch (error) {
+    logger.error('Error fetching available tenants:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
@@ -178,8 +298,8 @@ exports.updateLease = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
-    const { id: userId, role: userRole } = req.user;
-    const { start_date, end_date, rent_amount, security_deposit, status } = req.body;
+    const { id: userId } = req.user;
+    const { start_date, end_date, monthly_rent, security_deposit, status } = req.body;
 
     const { error } = updateLeaseSchema.validate(req.body);
     if (error) {
@@ -198,6 +318,7 @@ exports.updateLease = async (req, res) => {
     }
 
     const isOwner = lease.listing.property.owner_id === userId;
+    console.log(userId)
     if (!isOwner) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to update lease ${id} by user ID ${userId}.`);
@@ -208,7 +329,7 @@ exports.updateLease = async (req, res) => {
     if (ledger) {
       const oldRent = parseFloat(lease.monthly_rent);
       const oldDeposit = parseFloat(lease.deposit);
-      const newRent = parseFloat(rent_amount || oldRent);
+      const newRent = parseFloat(monthly_rent || oldRent);
       const newDeposit = parseFloat(security_deposit || oldDeposit);
 
       await ledger.update({
@@ -218,7 +339,7 @@ exports.updateLease = async (req, res) => {
     }
 
     // Update lease record
-    await lease.update({ start_date, end_date, monthly_rent: rent_amount, deposit: security_deposit, status }, { transaction });
+    await lease.update({ start_date, end_date, monthly_rent: monthly_rent, deposit: security_deposit, status }, { transaction });
 
     logger.info(`Lease ${id} updated.`);
     await transaction.commit();

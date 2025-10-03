@@ -109,6 +109,7 @@ const createLeaseSchema = Joi.object({
   end_date: Joi.date().iso().greater(Joi.ref('start_date')).required(),
   monthly_rent: Joi.number().precision(2).positive().required(),
   security_deposit: Joi.number().precision(2).positive().required(),
+  status: Joi.string().valid('active', 'in_active').required(),
 });
 
 // Joi schema for validating a lease update request
@@ -117,7 +118,7 @@ const updateLeaseSchema = Joi.object({
   end_date: Joi.date().iso().greater(Joi.ref('start_date')).optional(),
   monthly_rent: Joi.number().precision(2).positive().optional(),
   security_deposit: Joi.number().precision(2).positive().optional(),
-  status: Joi.string().valid('active', 'inactive', 'cancelled').optional(),
+  status: Joi.string().valid('active', 'in_active').optional(),
 });
 
 module.exports = {
