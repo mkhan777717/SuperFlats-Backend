@@ -5,9 +5,8 @@ module.exports = (sequelize) => {
     class LedgerEntry extends Model {
 
         static associate(models) {
-            // A LedgerEntry belongs to one Ledger
             LedgerEntry.belongsTo(models.Ledger, {
-                foreignKey: 'tenant_id',
+                foreignKey: 'ledger_id',
                 as: 'ledger',
             });
 

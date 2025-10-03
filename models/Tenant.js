@@ -7,6 +7,14 @@ module.exports = (sequelize) => {
             primaryKey: true,
             autoIncrement: true,
         },
+        company_id: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'companies',
+                key: 'id',
+            },
+        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -39,6 +47,11 @@ module.exports = (sequelize) => {
     });
 
     Tenant.associate = (models) => {
+        Tenant.belongsTo(models.Company, {
+            foreignKey: 'company_id',
+            as: 'company',
+            onDelete: 'CASCADE',
+        });
         Tenant.hasMany(models.Lease, {
             foreignKey: 'tenant_id',
             as: 'leases',

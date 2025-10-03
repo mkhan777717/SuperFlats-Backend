@@ -1,20 +1,21 @@
 const db = require('../models');
-const { Op, UniqueConstraintError, DatabaseError } = require('sequelize'); // 👈 Import specific error classes
+const { Op, UniqueConstraintError } = require('sequelize');
 const logger = require('../utils/logger');
 const Tenant = db.Tenant;
 const Lease = db.Lease;
 const Property = db.Property;
-const Listing = db.Listing;
 const { createTenantSchema, updateTenantSchema } = require('../utils/validator');
 
 /**
- * Creates a new tenant entity. This is an admin-only function.
- * @param {object} req - The request object.
+ * Creates a new tenant entity, associating it with the admin's company.
+ * @param {object} req - The request object (must contain req.user.company_id).
  * @param {object} res - The response object.
  */
 exports.createTenant = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
+    const companyId = req.user.company_id;
+
     const { error, value } = createTenantSchema.validate(req.body);
     if (error) {
       await transaction.rollback();
@@ -29,11 +30,12 @@ exports.createTenant = async (req, res) => {
       phone_number,
       email,
       joined_at,
+      company_id: companyId,
       created_at: new Date()
     }, { transaction });
 
     await transaction.commit();
-    logger.info(`New tenant with ID ${newTenant.id} created successfully by user ${req.user.id}.`);
+    logger.info(`New tenant with ID ${newTenant.id} created successfully for company ${companyId}.`);
     res.status(201).json({ message: 'Tenant created successfully.', tenant: newTenant });
 
   } catch (error) {
@@ -41,14 +43,12 @@ exports.createTenant = async (req, res) => {
       await transaction.rollback();
     }
 
-    // 🎯 ERROR HANDLING FIX: Check for the specific unique constraint error
     if (error instanceof UniqueConstraintError) {
-      const field = Object.keys(error.fields)[0]; // Get the field that caused the error (e.g., 'email')
-      const value = error.fields[field]; // Get the value that caused the error
+      const field = Object.keys(error.fields)[0];
+      const value = error.fields[field];
 
       logger.warn(`Tenant creation failed due to duplicate ${field}: ${value}`);
 
-      // Return 409 Conflict for resource duplication
       return res.status(409).json({
         message: `The provided ${field} is already in use by another tenant.`,
         field,
@@ -62,21 +62,25 @@ exports.createTenant = async (req, res) => {
 };
 
 /**
- * Retrieves a single tenant by ID, including their associated leases and properties.
- * @param {object} req - The request object.
+ * Retrieves a single tenant by ID, ensuring they belong to the user's company.
+ * @param {object} req - The request object (must contain req.user.company_id).
  * @param {object} res - The response object.
  */
 exports.getTenantById = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = req.user.company_id;
 
-    const tenantProfile = await Tenant.findByPk(id, {
+    const tenantProfile = await Tenant.findOne({
+      where: {
+        id: id,
+        company_id: companyId
+      },
       include: [
         {
           model: Lease,
           as: 'leases',
           include: [
-            // FIX: Correctly include the Property from the Lease association
             {
               model: Property,
               as: 'property',
@@ -87,11 +91,11 @@ exports.getTenantById = async (req, res) => {
     });
 
     if (!tenantProfile) {
-      logger.warn(`Tenant profile with ID ${id} not found.`);
+      logger.warn(`Tenant profile with ID ${id} not found for company ${companyId}.`);
       return res.status(404).json({ message: 'Tenant not found.' });
     }
 
-    logger.info(`Tenant profile with ID ${id} retrieved by user ${req.user.id}.`);
+    logger.info(`Tenant profile with ID ${id} retrieved for company ${companyId}.`);
     res.status(200).json(tenantProfile);
 
   } catch (error) {
@@ -101,33 +105,34 @@ exports.getTenantById = async (req, res) => {
 };
 
 /**
- * Retrieves all tenant profiles with optional filtering and pagination.
- * This is primarily for admin use.
- * @param {object} req - The request object.
+ * Retrieves all tenant profiles, filtered by the user's company ID.
+ * @param {object} req - The request object (must contain req.user.company_id).
  * @param {object} res - The response object.
  */
 exports.getAllTenants = async (req, res) => {
   try {
     const { limit = 20, offset = 0, search } = req.query;
-    const whereCondition = {};
+    const companyId = req.user.company_id;
+
+    const finalWhere = { company_id: companyId };
 
     if (search) {
-      whereCondition[Op.or] = [
+      finalWhere[Op.or] = [
         { name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } }, // UPDATED: Search by email
-        { phone_number: { [Op.like]: `%${search}%` } }, // UPDATED: Search by phone_number
+        { email: { [Op.like]: `%${search}%` } },
+        { phone_number: { [Op.like]: `%${search}%` } },
       ];
     }
 
     const tenants = await Tenant.findAll({
-      where: whereCondition,
+      where: finalWhere,
       attributes: ['id', 'name', 'email', 'phone_number', 'joined_at', 'created_at'],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['joined_at', 'DESC']],
     });
 
-    logger.info(`Retrieved ${tenants.length} tenant profiles by user ${req.user.id}.`);
+    logger.info(`Retrieved ${tenants.length} tenant profiles for company ${companyId}.`);
     res.status(200).json(tenants);
 
   } catch (error) {
@@ -137,31 +142,36 @@ exports.getAllTenants = async (req, res) => {
 };
 
 /**
- * Updates a tenant's profile.
- * This is an administrative action.
- * @param {object} req - The request object.
+ * Updates a tenant's profile, ensuring they belong to the user's company.
+ * @param {object} req - The request object (must contain req.user.company_id).
  * @param {object} res - The response object.
  */
 exports.updateTenant = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = req.user.company_id;
+
     const { error, value } = updateTenantSchema.validate(req.body);
     if (error) {
       logger.warn(`Validation failed during tenant update: ${error.details[0].message}`);
       return res.status(400).json({ message: error.details[0].message });
     }
-    console.log(value.joined_at)
-    const tenant = await Tenant.findByPk(id);
+
+    const tenant = await Tenant.findOne({
+      where: {
+        id: id,
+        company_id: companyId
+      }
+    });
 
     if (!tenant) {
-      logger.warn(`Tenant profile with ID ${id} not found for update.`);
+      logger.warn(`Tenant profile with ID ${id} not found for company ${companyId} for update.`);
       return res.status(404).json({ message: 'Tenant profile not found.' });
     }
 
-    // FIX: Directly use the UTC string from the client
     await tenant.update(value);
 
-    logger.info(`Tenant profile with ID ${id} updated successfully by user ${req.user.id}.`);
+    logger.info(`Tenant profile with ID ${id} updated successfully for company ${companyId}.`);
     res.status(200).json({ message: 'Profile updated successfully.', tenant: tenant });
 
   } catch (error) {
@@ -171,25 +181,28 @@ exports.updateTenant = async (req, res) => {
 };
 
 /**
- * Deletes a tenant profile.
- * This is an administrative action.
- * @param {object} req - The request object.
+ * Deletes a tenant profile, ensuring they belong to the user's company.
+ * @param {object} req - The request object (must contain req.user.company_id).
  * @param {object} res - The response object.
  */
 exports.deleteTenant = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = req.user.company_id;
 
     const deleted = await Tenant.destroy({
-      where: { id: id },
+      where: {
+        id: id,
+        company_id: companyId
+      },
     });
 
     if (deleted === 0) {
-      logger.warn(`Tenant profile with ID ${id} not found for deletion.`);
+      logger.warn(`Tenant profile with ID ${id} not found for deletion in company ${companyId}.`);
       return res.status(404).json({ message: 'Tenant profile not found.' });
     }
 
-    logger.info(`Tenant profile with ID ${id} deleted by admin user ${req.user.id}.`);
+    logger.info(`Tenant profile with ID ${id} deleted successfully from company ${companyId}.`);
     res.status(200).json({ message: 'Tenant profile deleted successfully.' });
 
   } catch (error) {

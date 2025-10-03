@@ -60,10 +60,6 @@ module.exports = (sequelize) => {
             as: 'listings',
             onDelete: 'CASCADE',
         });
-        User.hasMany(models.Property, {
-            foreignKey: 'owner_id',
-            as: 'properties',
-        });
         User.hasMany(models.Payment, {
             foreignKey: 'payer_id',
             as: 'payments',
