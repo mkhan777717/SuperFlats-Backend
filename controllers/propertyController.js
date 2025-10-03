@@ -36,6 +36,7 @@ exports.createProperty = async (req, res) => {
     const company_id = req.user.company_id;
     logger.info(`Creating property for company ID: ${company_id}`);
     const { title, description, property_type, address, city, state, zipcode, features, is_managed } = req.body;
+    ownerId = req.user.id;
 
     // Step 1: Create the property within the transaction
     const newProperty = await Property.create({
@@ -48,6 +49,7 @@ exports.createProperty = async (req, res) => {
       state,
       zipcode,
       is_managed,
+      owner_id: ownerId
     }, { transaction });
 
     // Step 2: Create associated features within the same transaction
