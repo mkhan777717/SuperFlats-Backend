@@ -38,7 +38,6 @@ exports.createProperty = async (req, res) => {
     const { title, description, property_type, address, city, state, zipcode, features, is_managed } = req.body;
     ownerId = req.user.id;
 
-    // Step 1: Create the property within the transaction
     const newProperty = await Property.create({
       company_id,
       title,
@@ -52,7 +51,6 @@ exports.createProperty = async (req, res) => {
       owner_id: ownerId
     }, { transaction });
 
-    // Step 2: Create associated features within the same transaction
     if (features && typeof features === 'object' && features !== null) {
       await PropertyFeature.create({
         property_id: newProperty.id,
@@ -60,10 +58,8 @@ exports.createProperty = async (req, res) => {
       }, { transaction });
     }
 
-    // Step 3: Commit the transaction
     await transaction.commit();
 
-    // Step 4: Fetch the newly created property with its associations
     const propertyWithAssociations = await Property.findByPk(newProperty.id, {
       include: [
         { model: Company, as: 'company' },
@@ -76,7 +72,6 @@ exports.createProperty = async (req, res) => {
     res.status(201).json({ message: 'Property created successfully.', property: propertyWithAssociations });
 
   } catch (error) {
-    // Rollback the transaction in case of any error
     if (transaction.finished !== 'commit') {
       await transaction.rollback();
     }
@@ -108,18 +103,14 @@ const buildQueryConditions = (query) => {
     conditions.property_type = { [Op.like]: `%${query.type}%` };
   }
   if (query.is_managed !== undefined) {
-    // Ensure the string 'true' or 'false' is converted to a boolean value.
     const isManagedValue = JSON.parse(query.is_managed.toLowerCase());
     conditions.is_managed = isManagedValue;
   }
 
-  // UPDATED: Add fuzzy search logic using SOUNDEX
   if (query.search) {
     conditions[Op.or] = [
-      // Standard case-insensitive substring search
       { title: { [Op.like]: `%${query.search}%` } },
       { description: { [Op.like]: `%${query.search}%` } },
-      // Fuzzy search using the SOUNDEX function
       literal(`SOUNDEX(title) = SOUNDEX('${query.search}')`),
       literal(`SOUNDEX(description) = SOUNDEX('${query.search}')`),
     ];
@@ -127,7 +118,6 @@ const buildQueryConditions = (query) => {
 
 
 
-  // Handle feature-based filters
   for (const feature of allowedFeatures) {
     if (query[feature]) {
       featureConditions[feature] = query[feature];
@@ -148,20 +138,14 @@ exports.searchAndFilterProperties = async (req, res) => {
     const { conditions, featureConditions } = buildQueryConditions(req.query);
     const order = [];
     const attributes = { include: [] };
-
-    // Set a default limit and offset for pagination
     const limit = req.query.limit ? parseInt(req.query.limit) : 20;
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
-
-    // An array to conditionally include the listings model
     const includeListings = [];
 
 
 
     if (req.query.sort_by === 'price') {
-      // Option 2: Sort by price from the Listing model.
       order.push([{ model: Listing, as: 'listings' }, 'price', req.query.sort_order || 'DESC']);
-      // A necessary inner join to make sure we only sort by listings that exist.
       includeListings.push({
         model: Listing,
         as: 'listings',
@@ -169,7 +153,6 @@ exports.searchAndFilterProperties = async (req, res) => {
         required: true,
       });
     } else {
-      // Option 3 (Default): Sort by a standard property attribute.
       order.push([req.query.sort_by || 'created_at', req.query.sort_order || 'DESC']);
     }
 
@@ -177,12 +160,12 @@ exports.searchAndFilterProperties = async (req, res) => {
       where: conditions,
       attributes,
       include: [
-        ...includeListings, // Include listings if sorting by price
+        ...includeListings, 
         {
           model: PropertyFeature,
           as: 'features',
           where: featureConditions,
-          required: Object.keys(featureConditions).length > 0, // Only inner join if features are filtered
+          required: Object.keys(featureConditions).length > 0, 
         },
         { model: PropertyPhoto, as: 'photos' },
         { model: Company, as: 'company', attributes: ['id', 'name'] },
@@ -190,8 +173,7 @@ exports.searchAndFilterProperties = async (req, res) => {
       order,
       limit,
       offset,
-      // Prevents Sequelize from creating a nested subquery for the ORDER BY clause,
-      // which can cause issues with joined tables.
+
       subQuery: false,
     });
 
@@ -314,7 +296,7 @@ exports.updateProperty = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
     }
 
-    // Check company ownership: ensure the authenticated user's company owns this property.
+  
     if (property.company_id !== req.user.company_id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to update property ID ${id} by user from company ID ${req.user.company_id}.`);
@@ -324,7 +306,6 @@ exports.updateProperty = async (req, res) => {
 
     await property.update(propertyData, { transaction });
 
-    // Update or create features
     if (features) {
       const existingFeatures = await PropertyFeature.findOne({ where: { property_id: id } });
       if (existingFeatures) {
@@ -334,10 +315,8 @@ exports.updateProperty = async (req, res) => {
       }
     }
 
-    // Commit the transaction after all updates are successful
     await transaction.commit();
 
-    // Fetch the updated property with all its associations to match the createProperty response
     const updatedPropertyWithAssociations = await Property.findByPk(id, {
       include: [
         { model: Company, as: 'company' },
@@ -390,7 +369,6 @@ exports.deletePhoto = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
     }
 
-    // Security check: only a user from the owning company can delete a photo from their property.
     if (photo.property.company_id !== req.user.company_id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to delete photo ID ${photoId} from property ID ${photo.property.id} by user from company ID ${req.user.company_id}.`);
@@ -399,12 +377,9 @@ exports.deletePhoto = async (req, res) => {
 
     const wasPrimary = photo.is_primary;
 
-    // Delete the photo from the file storage service.
     await deleteFile(photo.photo_url, 'photo');
-    // Delete the photo record from the database.
     await photo.destroy({ transaction });
 
-    // New logic: If the deleted photo was the primary one, assign a new primary.
     if (wasPrimary) {
       const remainingPhotos = await PropertyPhoto.findAll({
         where: { property_id: photo.property_id },
@@ -439,7 +414,6 @@ exports.deletePhoto = async (req, res) => {
  * @param {object} req - The request object.
  * @param {object} res - The response object.
  */
-//TODO: Prevent deletion if there are active leases associated with any of the property's listings.
 exports.deleteProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
@@ -457,23 +431,19 @@ exports.deleteProperty = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
     }
 
-    // Check company ownership: ensure the authenticated user's company owns this property.
     if (property.company_id !== req.user.company_id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to delete property ID ${id} by user from company ID ${req.user.company_id}.`);
       return res.status(403).json({ message: 'You are not authorized to delete this property.' });
     }
 
-    // Find and delete associated photos from Firebase first
     const photosToDelete = await PropertyPhoto.findAll({ where: { property_id: id }, transaction });
     await Promise.all(photosToDelete.map(photo => deleteFile(photo.photo_url, 'photo')));
 
-    // Then, delete associated records from the database
     await PropertyFeature.destroy({ where: { property_id: id }, transaction });
     await PropertyPhoto.destroy({ where: { property_id: id }, transaction });
     await db.Listing.destroy({ where: { property_id: id }, transaction });
 
-    // Finally, delete the property itself
     await property.destroy({ transaction });
 
     await transaction.commit();
@@ -511,7 +481,6 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded.' });
     }
 
-    // Step 1: Check the current photo count for the property
     const photoCount = await PropertyPhoto.count({
       where: { property_id: propertyId },
       transaction,
@@ -523,7 +492,6 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(400).json({ message: 'Maximum of 10 photos allowed per property.' });
     }
 
-    // Find the property to ensure it exists and to check company ownership
     const property = await Property.findByPk(propertyId, { transaction });
     if (!property) {
       await transaction.rollback();
@@ -536,21 +504,18 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
     }
 
-    // Security check: only a user from the owning company can add a photo to their property.
     if (property.company_id !== req.user.company_id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to add a photo to property ID ${propertyId} by user from company ID ${req.user.company_id}.`);
       return res.status(403).json({ message: 'You are not authorized to add photos to this property.' });
     }
 
-    // Upload the file to the storage service.
     const photoUrl = await uploadFile(req.file);
 
-    // Create a database record for the new photo.
     const newPhoto = await PropertyPhoto.create({
       property_id: propertyId,
       photo_url: photoUrl,
-      is_primary: false, // You might have logic to set this later.
+      is_primary: false, 
     }, { transaction });
 
     await transaction.commit();

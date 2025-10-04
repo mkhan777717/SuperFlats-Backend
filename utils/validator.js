@@ -121,6 +121,24 @@ const updateLeaseSchema = Joi.object({
   status: Joi.string().valid('active', 'in_active').optional(),
 });
 
+// Joi schema for creating a new ledger entry
+const createLedgerEntrySchema = Joi.object({
+  description: Joi.string().min(5).required(),
+  amount: Joi.number().precision(2).positive().required(),
+  type: Joi.string().valid('income', 'expense').required(),
+  category: Joi.string().optional().default('Uncategorized'),
+  date: Joi.date().iso().required(),
+});
+
+// Joi schema for updating a ledger entry
+const updateLedgerEntrySchema = Joi.object({
+  description: Joi.string().min(5).optional(),
+  amount: Joi.number().precision(2).positive().optional(),
+  type: Joi.string().valid('income', 'expense').optional(),
+  category: Joi.string().optional(),
+  date: Joi.date().iso().optional(),
+}).min(1); // Ensure at least one field is provided for update
+
 module.exports = {
   userRegistrationSchema,
   createPropertySchema,
@@ -134,5 +152,7 @@ module.exports = {
   updateTenantSchema,
   createLeaseSchema,
   updateLeaseSchema,
-  updateAppointmentStatusSchema
+  updateAppointmentStatusSchema,
+  createLedgerEntrySchema,
+  updateLedgerEntrySchema
 };

@@ -23,7 +23,6 @@ const protect = async (req, res, next) => {
         include: [{
           model: Employee,
           as: 'employee',
-          // FIX: Include the company_id in the attributes.
           attributes: ['id', 'user_id', 'company_id', 'joined_at'],
         }],
       });

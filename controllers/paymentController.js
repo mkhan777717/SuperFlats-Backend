@@ -162,7 +162,6 @@ exports.updatePaymentStatus = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this payment.' });
     }
 
-    // --- CRITICAL LEDGER UPDATE LOGIC ---
     if (status === 'completed' && payment.status !== 'completed') {
       const ledger = await Ledger.findOne({
         where: { tenant_id: payment.payer_id },
@@ -179,7 +178,6 @@ exports.updatePaymentStatus = async (req, res) => {
 
       logger.info(`Ledger for tenant ${payment.payer_id} updated. New balance: ${newBalance}.`);
     }
-    // --- END OF LEDGER UPDATE LOGIC ---
 
     payment.status = status;
     await payment.save({ transaction });

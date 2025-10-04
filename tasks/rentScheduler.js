@@ -37,17 +37,15 @@ const createMonthlyRentCharge = async () => {
 
         let newChargesCount = 0;
 
-        // 2. Process active leases
         for (const lease of activeLeases) {
             const tenantId = lease.tenant_id;
             const rentAmount = parseFloat(lease.monthly_rent);
 
-            // ⚠️ PRODUCTION FIX: Check if rent has ALREADY been charged this month
             const existingCharge = await LedgerEntry.findOne({
                 where: {
                     tenant_id: tenantId,
                     type: 'expense',
-                    category: 'Rent', // Assuming 'Rent' is the production category
+                    category: 'Rent',
                     date: { [Op.between]: [monthStart, monthEnd] }
                 },
                 transaction
@@ -55,9 +53,8 @@ const createMonthlyRentCharge = async () => {
 
             if (existingCharge) {
                 logger.info(`Scheduler: Rent already charged for tenant ${tenantId} for ${currentMonth}. Skipping.`);
-                continue; // Skip this tenant if charge exists
+                continue; 
             }
-            // ⚠️ END FIX
 
             const tenantLedger = await Ledger.findOne({
                 where: { tenant_id: tenantId },
@@ -69,18 +66,15 @@ const createMonthlyRentCharge = async () => {
                 continue;
             }
 
-            // A. Create the new LedgerEntry
             await LedgerEntry.create({
                 tenant_id: tenantId,
-                // Restored description for production
                 description: `Monthly Rent Charge (${currentMonth} ${currentYear})`,
                 amount: rentAmount,
                 type: 'expense',
-                category: 'Rent', // Restored category for production
+                category: 'Rent', 
                 date: now.toISOString().split('T')[0],
             }, { transaction });
 
-            // B. Update the Ledger balance
             let newBalance = parseFloat(tenantLedger.balance) - rentAmount;
             await tenantLedger.update({ balance: newBalance }, { transaction });
 
@@ -102,13 +96,11 @@ const createMonthlyRentCharge = async () => {
  * Schedules the task to run at 00:00 (midnight) on the 1st day of every month.
  */
 exports.startRentScheduler = () => {
-    // ✅ Restored cron expression for the 1st of every month
     cron.schedule('0 0 1 * *', () => { 
         logger.info('Scheduler: Running monthly rent charge job.');
         createMonthlyRentCharge();
     }, {
-        timezone: "UTC" // Ensures consistent execution time worldwide
+        timezone: "UTC" 
     });
-    // ✅ Restored log message
     logger.info('Scheduler: Monthly rent charge job started (Runs 1st of month at 00:00 UTC).');
 };

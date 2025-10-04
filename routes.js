@@ -131,11 +131,13 @@ router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantContro
 router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.deleteTenant);
 
 // -------------------- Ledger Routes (Admin-Only) --------------------
-router.get('/ledgers/tenants/:tenantId/summary', authMiddleware, roleMiddleware('admin'), ledgerController.getLedgerByTenantId);
+router.get('/ledgers/company/entries/', authMiddleware, roleMiddleware('admin'), ledgerController.getAllCompanyEntries);
+router.get('/ledgers/tenants/summary', authMiddleware, roleMiddleware('admin'), ledgerController.getAllLedgerSummaries);
+router.get('/ledgers/tenants/:tenantId/summary', authMiddleware, roleMiddleware('admin'), ledgerController.getLedgerSummaryByTenantId);
 router.get('/ledgers/tenants/:tenantId/entries', authMiddleware, roleMiddleware('admin'), ledgerController.getAllEntries);
 router.get('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.getEntryById);
 router.post('/ledgers/tenants/:tenantId/entries', authMiddleware, roleMiddleware('admin'), ledgerController.createEntry);
-router.put('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.updateEntry);
+router.patch('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.updateEntry);
 router.delete('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.deleteEntry);
 
 module.exports = router;

@@ -23,7 +23,6 @@ module.exports = (sequelize) => {
         key: 'id',
       },
     },
-    // CRITICAL FIX: Add the listing_id column and a reference to the listings table
     listing_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -78,7 +77,6 @@ module.exports = (sequelize) => {
       as: 'tenant'
     });
 
-    // CRITICAL FIX: A Lease belongs to one Listing
     Lease.belongsTo(models.Listing, {
       foreignKey: 'listing_id',
       as: 'listing'

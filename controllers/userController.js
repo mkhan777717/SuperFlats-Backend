@@ -17,7 +17,7 @@ exports.getProfile = async (req, res) => {
                 model: Employee,
                 as: 'employee',
                 attributes: ['company_id'],
-                required: false // Use LEFT JOIN to not fail for clients
+                required: false 
             }],
         });
 

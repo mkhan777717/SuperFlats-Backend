@@ -28,7 +28,6 @@ exports.createLease = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // 🎯 CRITICAL CHECK: Does the tenant already have an active, unexpired lease?
     const existingActiveLease = await Lease.findOne({
       where: {
         tenant_id,
@@ -45,12 +44,10 @@ exports.createLease = async (req, res) => {
       logger.warn(`Tenant ${tenant_id} already has an active lease (${existingActiveLease.id}).`);
       return res.status(400).json({ message: 'The selected tenant already has an active lease and cannot be assigned a new one.' });
     }
-    // END CRITICAL CHECK
 
-    // 1. Find Listing and Property (Already done)
     const listing = await Listing.findByPk(listing_id, {
       include: [{ model: Property, as: 'property' }],
-      transaction, // Ensure it's part of the transaction
+      transaction, 
     });
 
     if (!listing) {
@@ -63,14 +60,12 @@ exports.createLease = async (req, res) => {
       return res.status(400).json({ message: 'This listing is already leased and cannot be leased again.' });
     }
 
-    // 2. Find Tenant (Already done)
     const tenant = await Tenant.findByPk(tenant_id, { transaction });
     if (!tenant) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Tenant record not found.' });
     }
 
-    // 3. Create the Lease
     const newLease = await Lease.create({
       property_id: listing.property.id,
       listing_id: listing.id,
@@ -82,7 +77,6 @@ exports.createLease = async (req, res) => {
       status: 'active',
     }, { transaction });
 
-    // 4. Update Ledger and Listing Status (Already done)
     const [ledger, created] = await Ledger.findOrCreate({
       where: { tenant_id },
       defaults: {
@@ -99,13 +93,11 @@ exports.createLease = async (req, res) => {
 
     await listing.update({ status: 'closed' }, { transaction });
 
-    // 🎯 5. Fetch the newly created lease with all required associations
     const completeLease = await Lease.findByPk(newLease.id, {
       include: [
         {
           model: Listing,
           as: 'listing',
-          // Include the Property model, making sure to use its correct alias if needed
           include: [{ model: Property, as: 'property' }]
         },
         {
@@ -121,7 +113,6 @@ exports.createLease = async (req, res) => {
     logger.info(`New lease created for listing ${listing_id} with tenant ${tenant_id} by user ID ${userId}.`);
     await transaction.commit();
 
-    // 6. Return the fully associated lease object
     res.status(201).json({
       message: 'Lease created successfully.',
       lease: completeLease
@@ -184,7 +175,6 @@ exports.getAllLeases = async (req, res) => {
     const { id: userId, role: userRole } = req.user;
     const whereCondition = {};
 
-    // CRITICAL SECURITY FIX: Agents should only see their own properties' leases
     if (userRole === 'agent') {
       const properties = await Property.findAll({ where: { owner_id: userId }, attributes: ['id'] });
       const propertyIds = properties.map(p => p.id);
@@ -253,22 +243,18 @@ exports.getAvailableListings = async (req, res) => {
  */
 exports.getAvailableTenants = async (req, res) => {
   try {
-    // 1. Find IDs of tenants with an active lease that hasn't expired
     const activeLeaseTenantIds = await Lease.findAll({
       attributes: ['tenant_id'],
       where: {
         status: 'active',
-        // Ensure the end_date is in the future or today
         end_date: {
           [Op.gte]: new Date(),
         },
       },
-      // Important: Use distinct to get unique tenant IDs
       group: ['tenant_id'],
-      raw: true, // Return plain objects for simplicity
+      raw: true, 
     }).then(leases => leases.map(lease => lease.tenant_id));
 
-    // 2. Find all Tenants, excluding those with an active lease
     const tenants = await Tenant.findAll({
       attributes: ['id', 'name', 'email', 'phone_number'],
       where: {
