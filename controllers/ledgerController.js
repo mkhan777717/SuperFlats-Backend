@@ -5,36 +5,32 @@ const Ledger = db.Ledger;
 const Tenant = db.Tenant;
 const { Op } = require('sequelize');
 
-/**
- * Creates a new ledger entry for a specific tenant.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
+const { createLedgerEntrySchema, updateLedgerEntrySchema } = require('../utils/validator');
 exports.createEntry = async (req, res) => {
     const transaction = await db.sequelize.transaction();
     const { tenantId } = req.params;
-    const { description, amount, type, category, date } = req.body;
+    const companyId = req.user.company_id;
 
-    // Validate input data
-    if (!description || !amount || !type || !date) {
+    const { error, value } = createLedgerEntrySchema.validate(req.body);
+    if (error) {
         await transaction.rollback();
-        logger.warn(`Failed to create ledger entry: Missing required fields for tenant ${tenantId}.`);
-        return res.status(400).json({ message: 'All fields (description, amount, type, date) are required.' });
+        logger.warn(`Validation failed during ledger entry creation: ${error.details[0].message}`);
+        return res.status(400).json({ message: error.details[0].message });
     }
 
-    if (type !== 'income' && type !== 'expense') {
-        await transaction.rollback();
-        logger.warn(`Failed to create ledger entry: Invalid type '${type}' for tenant ${tenantId}.`);
-        return res.status(400).json({ message: 'Type must be either "income" or "expense".' });
-    }
-
-    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-        await transaction.rollback();
-        logger.warn(`Failed to create ledger entry: Invalid amount '${amount}' for tenant ${tenantId}.`);
-        return res.status(400).json({ message: 'Amount must be a positive number.' });
-    }
+    const { description, amount, type, category, date } = value;
 
     try {
+        const tenant = await Tenant.findOne({
+            where: { id: tenantId, company_id: companyId },
+            transaction
+        });
+
+        if (!tenant) {
+            await transaction.rollback();
+            return res.status(404).json({ message: 'Tenant not found for this company.' });
+        }
+
         const tenantLedger = await Ledger.findOne({
             where: { tenant_id: tenantId },
             transaction
@@ -42,30 +38,41 @@ exports.createEntry = async (req, res) => {
 
         if (!tenantLedger) {
             await transaction.rollback();
-            return res.status(404).json({ message: 'Ledger not found for this tenant.' });
+            return res.status(500).json({ message: 'Internal error: Tenant Ledger not initialized.' });
         }
 
-        const newEntry = await LedgerEntry.create({
+        const entry = await LedgerEntry.create({
             description,
             amount,
             type,
-            category: category || 'Uncategorized',
+            category,
             date,
-            tenant_id: tenantId
+            tenant_id: tenantId,
+            ledger_id: tenantLedger.id,
         }, { transaction });
 
         let newBalance = parseFloat(tenantLedger.balance);
+        const entryAmount = parseFloat(amount);
         if (type === 'income') {
-            newBalance += parseFloat(amount);
+            newBalance += entryAmount;
         } else {
-            newBalance -= parseFloat(amount);
+            newBalance -= entryAmount;
         }
 
         await tenantLedger.update({ balance: newBalance }, { transaction });
 
         await transaction.commit();
-        logger.info(`New ledger entry created successfully for tenant ${tenantId}. Entry ID: ${newEntry.id}.`);
-        res.status(201).json(newEntry);
+
+        const newEntryWithTenant = await LedgerEntry.findByPk(entry.id, {
+            include: [{
+                model: Tenant,
+                as: 'tenant',
+
+            }]
+        });
+
+        logger.info(`New ledger entry created successfully for tenant ${tenantId}. Entry ID: ${entry.id}.`);
+        res.status(201).json({ message: "Ledger Entry created successfully.", entry: newEntryWithTenant });
 
     } catch (error) {
         if (transaction.finished !== 'commit') {
@@ -76,14 +83,11 @@ exports.createEntry = async (req, res) => {
     }
 };
 
-/**
- * Retrieves all ledger entries for a specific tenant.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
+
 exports.getAllEntries = async (req, res) => {
     const { tenantId } = req.params;
     const { type, startDate, endDate } = req.query;
+    const companyId = req.user.company_id;
     let whereClause = { tenant_id: tenantId };
 
     if (type) {
@@ -97,8 +101,23 @@ exports.getAllEntries = async (req, res) => {
     }
 
     try {
+        const tenantCheck = await Tenant.findOne({
+            where: { id: tenantId, company_id: companyId },
+            attributes: ['id']
+        });
+
+        if (!tenantCheck) {
+            logger.warn(`Access denied: Tenant ID ${tenantId} not found for company ${companyId}.`);
+            return res.status(404).json({ message: 'Tenant or resources not found.' });
+        }
+
         const entries = await LedgerEntry.findAll({
             where: whereClause,
+            include: [{
+                model: Tenant,
+                as: 'tenant', 
+                where: { company_id: companyId }
+            }],
             order: [['date', 'DESC'], ['created_at', 'DESC']]
         });
 
@@ -111,21 +130,22 @@ exports.getAllEntries = async (req, res) => {
     }
 };
 
-/**
- * Retrieves a single ledger entry by its ID for a specific tenant.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
 exports.getEntryById = async (req, res) => {
     const { tenantId, entryId } = req.params;
+    const companyId = req.user.company_id;
 
     try {
         const entry = await LedgerEntry.findOne({
-            where: { id: entryId, tenant_id: tenantId }
+            where: { id: entryId, tenant_id: tenantId },
+            include: [{
+                model: Tenant,
+                as: 'tenant',
+                where: { company_id: companyId }
+            }]
         });
 
         if (!entry) {
-            logger.warn(`Ledger entry with ID ${entryId} not found for tenant ${tenantId}.`);
+            logger.warn(`Ledger entry with ID ${entryId} not found for tenant ${tenantId} or company ${companyId}.`);
             return res.status(404).json({ message: 'Ledger entry not found.' });
         }
 
@@ -138,26 +158,32 @@ exports.getEntryById = async (req, res) => {
     }
 };
 
-/**
- * Updates an existing ledger entry for a specific tenant.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
 exports.updateEntry = async (req, res) => {
     const { tenantId, entryId } = req.params;
-
+    const companyId = req.user.company_id;
     const transaction = await db.sequelize.transaction();
+
+    const { error, value: updatedFields } = updateLedgerEntrySchema.validate(req.body);
+    if (error) {
+        await transaction.rollback();
+        logger.warn(`Validation failed during ledger entry update: ${error.details[0].message}`);
+        return res.status(400).json({ message: error.details[0].message });
+    }
 
     try {
         const entry = await LedgerEntry.findOne({
             where: { id: entryId, tenant_id: tenantId },
+            include: [{
+                model: Tenant,
+                as: 'tenant',
+                where: { company_id: companyId }
+            }],
             transaction
         });
 
         if (!entry) {
             await transaction.rollback();
-            logger.warn(`Failed to update ledger entry: Entry with ID ${entryId} not found for tenant ${tenantId}.`);
-            return res.status(404).json({ message: 'Ledger entry not found.' });
+            return res.status(404).json({ message: 'Ledger entry not found for this company.' });
         }
 
         const tenantLedger = await Ledger.findOne({
@@ -165,29 +191,23 @@ exports.updateEntry = async (req, res) => {
             transaction
         });
 
-        if (!tenantLedger) {
-            await transaction.rollback();
-            return res.status(404).json({ message: 'Ledger not found for this tenant.' });
-        }
+        const oldAmount = parseFloat(entry.amount);
+        const oldType = entry.type;
 
-        let oldBalance = parseFloat(tenantLedger.balance);
-        if (entry.type === 'income') {
-            oldBalance -= parseFloat(entry.amount);
-        } else {
-            oldBalance += parseFloat(entry.amount);
-        }
+        const effectiveNewAmount = parseFloat(updatedFields.amount || entry.amount);
+        const effectiveNewType = updatedFields.type || entry.type;
 
-        const updatedFields = req.body;
+
+        let balanceAdjustment = 0;
+        balanceAdjustment -= (oldType === 'income' ? oldAmount : -oldAmount);
+
+        balanceAdjustment += (effectiveNewType === 'income' ? effectiveNewAmount : -effectiveNewAmount);
+
         await entry.update(updatedFields, { transaction });
 
-        let newBalance = oldBalance;
-        if (entry.type === 'income') {
-            newBalance += parseFloat(entry.amount);
-        } else {
-            newBalance -= parseFloat(entry.amount);
-        }
+        const newLedgerBalance = parseFloat(tenantLedger.balance) + balanceAdjustment;
 
-        await tenantLedger.update({ balance: newBalance }, { transaction });
+        await tenantLedger.update({ balance: newLedgerBalance }, { transaction });
 
         await transaction.commit();
         logger.info(`Ledger entry with ID ${entryId} updated for tenant ${tenantId}.`);
@@ -202,26 +222,25 @@ exports.updateEntry = async (req, res) => {
     }
 };
 
-/**
- * Deletes a ledger entry for a specific tenant.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
 exports.deleteEntry = async (req, res) => {
     const { tenantId, entryId } = req.params;
-
+    const companyId = req.user.company_id;
     const transaction = await db.sequelize.transaction();
 
     try {
         const entry = await LedgerEntry.findOne({
             where: { id: entryId, tenant_id: tenantId },
+            include: [{
+                model: Tenant,
+                as: 'tenant',
+                where: { company_id: companyId }
+            }],
             transaction
         });
 
         if (!entry) {
             await transaction.rollback();
-            logger.warn(`Failed to delete ledger entry: Entry with ID ${entryId} not found for tenant ${tenantId}.`);
-            return res.status(404).json({ message: 'Ledger entry not found.' });
+            return res.status(404).json({ message: 'Ledger entry not found for this company.' });
         }
 
         const tenantLedger = await Ledger.findOne({
@@ -229,16 +248,12 @@ exports.deleteEntry = async (req, res) => {
             transaction
         });
 
-        if (!tenantLedger) {
-            await transaction.rollback();
-            return res.status(404).json({ message: 'Ledger not found for this tenant.' });
-        }
-
         let newBalance = parseFloat(tenantLedger.balance);
+        const entryAmount = parseFloat(entry.amount);
         if (entry.type === 'income') {
-            newBalance -= parseFloat(entry.amount);
+            newBalance -= entryAmount;
         } else {
-            newBalance += parseFloat(entry.amount);
+            newBalance += entryAmount;
         }
 
         await tenantLedger.update({ balance: newBalance }, { transaction });
@@ -257,27 +272,97 @@ exports.deleteEntry = async (req, res) => {
     }
 };
 
-/**
- * Retrieves a single ledger record for a specific tenant, including balance and deposit.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
-exports.getLedgerByTenantId = async (req, res) => {
+
+exports.getLedgerSummaryByTenantId = async (req, res) => {
     try {
         const { tenantId } = req.params;
-
+        const companyId = req.user.company_id;
         const ledger = await Ledger.findOne({
             where: { tenant_id: tenantId },
-            include: [{ model: Tenant, as: 'tenant' }]
+            include: [{
+                model: Tenant,
+                as: 'tenant',
+                where: { company_id: companyId }
+            }]
         });
 
         if (!ledger) {
-            return res.status(404).json({ message: 'Ledger not found for this tenant.' });
+            return res.status(404).json({ message: 'Ledger or Tenant not found for this company.' });
         }
 
         res.status(200).json(ledger);
     } catch (error) {
         logger.error(`Error fetching ledger for tenant ${req.params.tenantId}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+
+exports.getAllLedgerSummaries = async (req, res) => {
+    try {
+        const companyId = req.user.company_id;
+
+        const allLedgerSummaries = await db.Ledger.findAll({
+            include: [{
+                model: db.Tenant,
+                as: 'tenant',
+                where: { company_id: companyId }
+            }],
+            order: [[{ model: db.Tenant, as: 'tenant' }, 'name', 'ASC']]
+        });
+
+        if (allLedgerSummaries.length === 0) {
+            logger.info(`No ledger summaries found for company ${companyId}.`);
+            return res.status(200).json([]);
+        }
+
+        logger.info(`Retrieved ${allLedgerSummaries.length} ledger summaries for company ${companyId}.`);
+        res.status(200).json(allLedgerSummaries);
+
+    } catch (error) {
+        logger.error('Error fetching all ledger summaries:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+exports.getAllCompanyEntries = async (req, res) => {
+    const companyId = req.user.company_id;
+    const { type, startDate, endDate } = req.query;
+
+    let whereClause = {}; // Base where clause for LedgerEntry
+
+    if (type) {
+        whereClause.type = type;
+    }
+
+    if (startDate && endDate) {
+        whereClause.date = {
+            [Op.between]: [new Date(startDate), new Date(endDate)]
+        };
+    }
+
+    try {
+        const entries = await LedgerEntry.findAll({
+            where: whereClause,
+            include: [{
+                model: Tenant,
+                as: 'tenant',
+                where: { company_id: companyId },
+                attributes: { exclude: ['company_id', 'created_at', 'updated_at'] }
+            }],
+            order: [['date', 'DESC'], ['created_at', 'DESC']]
+        });
+
+        if (entries.length === 0) {
+            logger.info(`No ledger entries found for company ${companyId}.`);
+            return res.status(200).json([]);
+        }
+
+        logger.info(`Retrieved ${entries.length} ledger entries for company ${companyId}.`);
+        res.status(200).json(entries);
+
+    } catch (error) {
+        logger.error(`Error fetching all company ledger entries for company ${companyId}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
