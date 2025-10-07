@@ -15,22 +15,24 @@ const updateAppointmentStatusSchema = Joi.object({
 
 // Joi schema for creating a new property
 const createPropertySchema = Joi.object({
-  title: Joi.string().min(5).required(),
-  description: Joi.string().min(20).required(),
-  property_type: Joi.string().valid('apartment', 'villa', 'house', 'condo').required(),
-  address: Joi.string().required(),
-  city: Joi.string().required(),
-  state: Joi.string().required(),
-  zipcode: Joi.string().required(),
-  features: Joi.object({
-    bedrooms: Joi.number().integer().min(0),
-    bathrooms: Joi.number().integer().min(0),
-    area_sqft: Joi.number().positive(),
-    furnishing: Joi.string().valid('furnished', 'semi-furnished', 'unfurnished'),
-    parking: Joi.boolean(),
-    amenities: Joi.array(),
-  }).optional(),
-  is_managed: Joi.boolean()
+  name: Joi.string().min(5).required(),
+  description: Joi.string().optional().allow(''),
+
+  address: Joi.string().min(2).required(),
+  city: Joi.string().min(2).required(),
+  state: Joi.string().min(2).required(),
+  zipcode: Joi.string().length(6).required().pattern(/^[0-9]+$/),
+
+  count_1rk: Joi.number().integer().required().default(0).min(0),
+  count_1bhk: Joi.number().integer().required().default(0).min(0),
+  count_2bhk: Joi.number().integer().required().default(0).min(0),
+  count_3bhk: Joi.number().integer().required().default(0).min(0),
+  count_3bhk_plus: Joi.number().integer().required().default(0).min(0),
+
+  area_sqft: Joi.number().positive().min(1).optional(),
+  parking: Joi.boolean().optional(),
+  amenities: Joi.array().items(Joi.string()).optional(),
+  is_managed: Joi.boolean().optional()
 });
 
 // Joi schema for creating a new listing

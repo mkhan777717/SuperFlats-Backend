@@ -6,7 +6,7 @@ const Property = db.Property;
 const User = db.User;
 const Company = db.Company;
 const PropertyFeature = db.PropertyFeature;
-const PropertyPhoto = db.PropertyPhoto;
+const Photo = db.Photo;
 
 
 // Create a new listing
@@ -193,7 +193,7 @@ exports.getAvailablePropertiesForListing = async (req, res) => {
             }, include: [
                 { model: Company, as: 'company', attributes: ['id', 'name'] },
                 { model: PropertyFeature, as: 'features' },
-                { model: PropertyPhoto, as: 'photos' },
+                { model: Photo, as: 'photos' },
             ]
         });
 

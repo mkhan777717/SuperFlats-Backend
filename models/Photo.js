@@ -1,9 +1,9 @@
-// models/PropertyPhoto.js
+// models/Photo.js
 
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-    const PropertyPhoto = sequelize.define('PropertyPhoto', {
+    const Photo = sequelize.define('Photo', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
@@ -22,17 +22,17 @@ module.exports = (sequelize) => {
             defaultValue: false,
         },
     }, {
-        tableName: 'property_photos',
+        tableName: 'photos',
         timestamps: false,
     });
 
-    PropertyPhoto.associate = (models) => {
+    Photo.associate = (models) => {
         // A property photo belongs to a single property.
-        PropertyPhoto.belongsTo(models.Property, {
+        Photo.belongsTo(models.Property, {
             foreignKey: 'property_id',
             as: 'property',
         });
     };
 
-    return PropertyPhoto;
+    return Photo;
 };
