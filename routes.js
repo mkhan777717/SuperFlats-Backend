@@ -11,8 +11,8 @@ const employeeController = require('./controllers/employeeController');
 const listingController = require('./controllers/listingController');
 const leaseController = require('./controllers/leaseController');
 const userController = require('./controllers/userController');
-const tenantController = require('./controllers/tenantController'); // New tenant controller
-const ledgerController = require('./controllers/ledgerController'); // New ledger controller
+const tenantController = require('./controllers/tenantController');
+const ledgerController = require('./controllers/ledgerController');
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -48,10 +48,8 @@ router.post(
   roleMiddleware('admin', 'agent'),
   propertyController.createProperty
 );
-router.get('/properties/me', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.getAllOwnProperties);
-router.get('/properties/search', propertyController.searchAndFilterProperties);
+router.get('/properties/', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.getProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
-router.get('/properties', propertyController.getAllProperties);
 router.patch(
   '/properties/:id',
   authMiddleware,
@@ -81,7 +79,7 @@ router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingC
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
 router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.updateAppointment)
-router.put('/appointments/:id/assign', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.assignEmployee); // New endpoint for assigning employee
+router.put('/appointments/:id/assign', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.assignEmployee);
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 'agent', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
