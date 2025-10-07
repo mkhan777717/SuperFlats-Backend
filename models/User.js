@@ -38,11 +38,7 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: true,
         },
-        // Add the company_id field here
-        company_id: {
-            type: DataTypes.INTEGER,
-            allowNull: true,
-        },
+
         created_at: {
             type: DataTypes.DATE,
             allowNull: false,
@@ -73,11 +69,6 @@ module.exports = (sequelize) => {
             onDelete: 'CASCADE',
         });
 
-        // Add the new association to the Company model
-        User.belongsTo(models.Company, {
-            foreignKey: 'company_id',
-            as: 'company',
-        });
     };
 
     return User;
