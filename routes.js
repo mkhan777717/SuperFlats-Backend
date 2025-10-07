@@ -7,7 +7,6 @@ const authController = require('./controllers/authController');
 const propertyController = require('./controllers/propertyController');
 const appointmentController = require('./controllers/appointmentController');
 const groupedListingController = require('./controllers/groupedListingController');
-// const paymentController = require('./controllers/paymentController');
 const employeeController = require('./controllers/employeeController');
 const listingController = require('./controllers/listingController');
 const leaseController = require('./controllers/leaseController');
@@ -87,13 +86,6 @@ router.get('/appointments/me', authMiddleware, appointmentController.getAppointm
 router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 'agent', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin'), appointmentController.deleteAppointment);
-
-
-// // -------------------- Payment Routes --------------------
-// router.post('/payments', authMiddleware, roleMiddleware('admin'), paymentController.createPayment);
-// router.get('/payments/lease/:leaseId', authMiddleware, roleMiddleware('client', 'admin', 'agent'), paymentController.getPaymentsByLease);
-// router.put('/payments/:id/status', authMiddleware, roleMiddleware('admin', 'agent'), paymentController.updatePaymentStatus);
-
 
 // -------------------- Employee Routes --------------------
 // Updated route to get all employees for the authenticated user's company
