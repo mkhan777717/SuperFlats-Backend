@@ -4,14 +4,11 @@ const logger = require('../utils/logger');
 const { createPropertySchema } = require('../utils/validator');
 const { uploadFile, deleteFile } = require('../utils/fileService');
 const Property = db.Property;
-const PropertyFeature = db.PropertyFeature;
-const PropertyPhoto = db.PropertyPhoto;
+const Photo = db.Photo;
 const User = db.User;
 const Company = db.Company;
 const axios = require('axios');
 const Listing = db.Listing;
-
-
 
 /**
  * Creates a new property, its features, and photos in a single transaction.
@@ -21,7 +18,6 @@ const Listing = db.Listing;
 exports.createProperty = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
-    // Validate request body against a Joi schema
     const { error } = createPropertySchema.validate(req.body);
     if (error) {
       await transaction.rollback();
@@ -29,42 +25,45 @@ exports.createProperty = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Get the company_id securely from the authenticated user's token
-    if (!req.user || !req.user.company_id) {
+    if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+      await transaction.rollback();
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
     }
-    const company_id = req.user.company_id;
+
+    const company_id = req.user.employee.company_id;
     logger.info(`Creating property for company ID: ${company_id}`);
-    const { title, description, property_type, address, city, state, zipcode, features, is_managed } = req.body;
-    ownerId = req.user.id;
+
+    const {
+      name, description, address, city, state, zipcode,
+      count_1rk, count_1bhk, count_2bhk, count_3bhk, count_3bhk_plus,
+      area_sqft, parking, amenities, is_managed,
+    } = req.body;
 
     const newProperty = await Property.create({
       company_id,
-      title,
+      name,
       description,
-      property_type,
       address,
       city,
       state,
       zipcode,
+      count_1rk,
+      count_1bhk,
+      count_2bhk,
+      count_3bhk,
+      count_3bhk_plus,
+      area_sqft,
+      parking,
+      amenities,
       is_managed,
-      owner_id: ownerId
     }, { transaction });
-
-    if (features && typeof features === 'object' && features !== null) {
-      await PropertyFeature.create({
-        property_id: newProperty.id,
-        ...features,
-      }, { transaction });
-    }
 
     await transaction.commit();
 
     const propertyWithAssociations = await Property.findByPk(newProperty.id, {
       include: [
         { model: Company, as: 'company' },
-        { model: PropertyFeature, as: 'features' },
-        { model: PropertyPhoto, as: 'photos' }
+        { model: Photo, as: 'photos' }
       ]
     });
 
@@ -80,113 +79,6 @@ exports.createProperty = async (req, res) => {
   }
 };
 
-/**
- * Helper function to build dynamic query conditions based on request query parameters.
- * @param {object} query - The request query object.
- * @returns {{conditions: object, featureConditions: object}} The generated Sequelize conditions.
- */
-const buildQueryConditions = (query) => {
-  const conditions = {};
-  const featureConditions = {};
-  const allowedFeatures = ['bedrooms', 'bathrooms', 'area_sqft', 'furnishing', 'parking', 'amenities'];
-
-  if (query.city) {
-    conditions.city = { [Op.like]: `%${query.city}%` };
-  }
-  if (query.state) {
-    conditions.state = { [Op.like]: `%${query.state}%` };
-  }
-  if (query.zipcode) {
-    conditions.zipcode = query.zipcode;
-  }
-  if (query.type) {
-    conditions.property_type = { [Op.like]: `%${query.type}%` };
-  }
-  if (query.is_managed !== undefined) {
-    const isManagedValue = JSON.parse(query.is_managed.toLowerCase());
-    conditions.is_managed = isManagedValue;
-  }
-
-  if (query.search) {
-    conditions[Op.or] = [
-      { title: { [Op.like]: `%${query.search}%` } },
-      { description: { [Op.like]: `%${query.search}%` } },
-      literal(`SOUNDEX(title) = SOUNDEX('${query.search}')`),
-      literal(`SOUNDEX(description) = SOUNDEX('${query.search}')`),
-    ];
-  }
-
-
-
-  for (const feature of allowedFeatures) {
-    if (query[feature]) {
-      featureConditions[feature] = query[feature];
-    }
-  }
-
-  return { conditions, featureConditions };
-};
-
-/**
- * Searches and filters properties with advanced options, including
- * sorting by distance, price, and other attributes.
- * @param {object} req - The request object with query parameters.
- * @param {object} res - The response object.
- */
-exports.searchAndFilterProperties = async (req, res) => {
-  try {
-    const { conditions, featureConditions } = buildQueryConditions(req.query);
-    const order = [];
-    const attributes = { include: [] };
-    const limit = req.query.limit ? parseInt(req.query.limit) : 20;
-    const offset = req.query.offset ? parseInt(req.query.offset) : 0;
-    const includeListings = [];
-
-
-
-    if (req.query.sort_by === 'price') {
-      order.push([{ model: Listing, as: 'listings' }, 'price', req.query.sort_order || 'DESC']);
-      includeListings.push({
-        model: Listing,
-        as: 'listings',
-        attributes: ['price'],
-        required: true,
-      });
-    } else {
-      order.push([req.query.sort_by || 'created_at', req.query.sort_order || 'DESC']);
-    }
-
-    const properties = await Property.findAll({
-      where: conditions,
-      attributes,
-      include: [
-        ...includeListings, 
-        {
-          model: PropertyFeature,
-          as: 'features',
-          where: featureConditions,
-          required: Object.keys(featureConditions).length > 0, 
-        },
-        { model: PropertyPhoto, as: 'photos' },
-        { model: Company, as: 'company', attributes: ['id', 'name'] },
-      ],
-      order,
-      limit,
-      offset,
-
-      subQuery: false,
-    });
-
-    if (properties.length === 0) {
-      logger.info('No properties found matching the search criteria.');
-    }
-
-    res.status(200).json(properties);
-  } catch (error) {
-    logger.error('Error fetching properties with filters:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  }
-};
 
 /**
  * Retrieves a single property by its ID, including all related details.
@@ -201,7 +93,7 @@ exports.getPropertyById = async (req, res) => {
       include: [
         { model: Company, as: 'company', attributes: ['id', 'name'] },
         { model: PropertyFeature, as: 'features' },
-        { model: PropertyPhoto, as: 'photos' },
+        { model: Photo, as: 'photos' },
         { model: db.Listing, as: 'listings' },
       ],
     });
@@ -219,58 +111,102 @@ exports.getPropertyById = async (req, res) => {
   }
 };
 
+
 /**
- * Retrieves all properties (simple version, for backward compatibility).
- * @param {object} req - The request object.
- * @param {object} res - The response object.
+ * Controller/Route Handler for retrieving properties with dynamic filtering, sorting, and pagination.
+ * It enforces multi-tenancy by scoping results to the company_id found in the request token (req.user).
+ *
+ * @param {object} req - Express request object (includes req.query and req.user).
+ * @param {object} res - Express response object.
+ * @returns {void} - Sends a JSON response with paginated property data or an error status.
  */
-exports.getAllProperties = async (req, res) => {
-  try {
+exports.getProperties = async (req, res) => {
+  if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+    return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+  }
 
-    const properties = await Property.findAll({
+  const queryParams = req.query;
+  const company_id = req.user.employee.company_id;
 
-      include: [
-        { model: Company, as: 'company', attributes: ['id', 'name'] },
-        { model: PropertyFeature, as: 'features' },
-        { model: PropertyPhoto, as: 'photos' },
+  const {
+    searchTerm,
+    roomCountType,
+    is_managed,
+    sortBy = 'created_at',
+    sortOrder = 'DESC',
+    limit = 10,
+    offset = 0,
+  } = queryParams;
+
+  const whereConditions = {
+    company_id: company_id,
+  };
+
+  const andConditions = [];
+
+  const validSortColumns = ['created_at', 'name', 'area_sqft'];
+  const validRoomCountTypes = ['1rk', '1bhk', '2bhk', '3bhk', '3bhk_plus'];
+
+
+  // FIX APPLIED HERE: Using Op.like for MySQL compatibility
+  if (searchTerm) {
+    andConditions.push({
+      [Op.or]: [
+        { name: { [Op.like]: `%${searchTerm}%` } },
+        { address: { [Op.like]: `%${searchTerm}%` } },
+        { description: { [Op.like]: `%${searchTerm}%` } },
       ],
-      order: [['created_at', 'DESC']],
+    });
+  }
+
+  if (roomCountType && validRoomCountTypes.includes(roomCountType)) {
+    const columnName = `count_${roomCountType}`;
+    andConditions.push({ [columnName]: { [Op.gte]: 1 } });
+  }
+
+  if (is_managed !== undefined) {
+    const isManagedBoolean = (is_managed === 'true' || is_managed === true);
+    andConditions.push({ is_managed: isManagedBoolean });
+  }
+
+  if (andConditions.length > 0) {
+    whereConditions[Op.and] = andConditions;
+  }
+
+
+  const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+  const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const finalLimit = parseInt(limit, 10);
+  const finalOffset = parseInt(offset, 10);
+
+  try {
+    const results = await Property.findAndCountAll({
+      where: whereConditions,
+      limit: finalLimit,
+      offset: finalOffset,
+      order: [[finalSortBy, finalSortOrder]],
     });
 
-    res.status(200).json(properties);
+    const totalPages = Math.ceil(results.count / finalLimit);
+    const currentPage = Math.floor(finalOffset / finalLimit) + 1;
+
+    return res.json({
+      totalItems: results.count,
+      totalPages: totalPages,
+      currentPage: currentPage,
+      limit: finalLimit,
+      properties: results.rows,
+    });
+
   } catch (error) {
-    logger.error('Error fetching all properties:', error);
-    res.status(500).json({ error: 'Internal server error.' });
+    // Ensuring the logger is called with the specific error
+    logger.error('Error retrieving properties:', error); 
+    // Sending a general 500 status to the client
+    res.status(500).json({ message: 'Failed to retrieve properties due to a server error.' });
   }
 };
 
-/**
- * Retrieves all properties for the authenticated user's company.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- */
-exports.getAllOwnProperties = async (req, res) => {
-  try {
-    if (!req.user || !req.user.company_id) {
-      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
-    }
-    const company_id = req.user.company_id;
-    const properties = await Property.findAll({
-      where: { company_id: company_id },
-      include: [
-        { model: Company, as: 'company', attributes: ['id', 'name'] },
-        { model: PropertyFeature, as: 'features' },
-        { model: PropertyPhoto, as: 'photos' },
-      ],
-      order: [['created_at', 'DESC']],
-    });
 
-    res.status(200).json(properties);
-  } catch (error) {
-    logger.error('Error fetching properties for the company:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  }
-};
 
 /**
  * Updates an existing property, including its features , in a single transaction.
@@ -296,7 +232,7 @@ exports.updateProperty = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
     }
 
-  
+
     if (property.company_id !== req.user.company_id) {
       await transaction.rollback();
       logger.warn(`Unauthorized attempt to update property ID ${id} by user from company ID ${req.user.company_id}.`);
@@ -321,7 +257,7 @@ exports.updateProperty = async (req, res) => {
       include: [
         { model: Company, as: 'company' },
         { model: PropertyFeature, as: 'features' },
-        { model: PropertyPhoto, as: 'photos' }
+        { model: Photo, as: 'photos' }
       ]
     });
 
@@ -353,7 +289,7 @@ exports.deletePhoto = async (req, res) => {
       return res.status(400).json({ message: 'Photo ID is required.' });
     }
 
-    const photo = await PropertyPhoto.findByPk(photoId, {
+    const photo = await Photo.findByPk(photoId, {
       include: [{ model: Property, as: 'property' }],
       transaction
     });
@@ -381,7 +317,7 @@ exports.deletePhoto = async (req, res) => {
     await photo.destroy({ transaction });
 
     if (wasPrimary) {
-      const remainingPhotos = await PropertyPhoto.findAll({
+      const remainingPhotos = await Photo.findAll({
         where: { property_id: photo.property_id },
         order: [['id', 'ASC']],
         limit: 1,
@@ -437,11 +373,11 @@ exports.deleteProperty = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to delete this property.' });
     }
 
-    const photosToDelete = await PropertyPhoto.findAll({ where: { property_id: id }, transaction });
+    const photosToDelete = await Photo.findAll({ where: { property_id: id }, transaction });
     await Promise.all(photosToDelete.map(photo => deleteFile(photo.photo_url, 'photo')));
 
     await PropertyFeature.destroy({ where: { property_id: id }, transaction });
-    await PropertyPhoto.destroy({ where: { property_id: id }, transaction });
+    await Photo.destroy({ where: { property_id: id }, transaction });
     await db.Listing.destroy({ where: { property_id: id }, transaction });
 
     await property.destroy({ transaction });
@@ -481,7 +417,7 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded.' });
     }
 
-    const photoCount = await PropertyPhoto.count({
+    const photoCount = await Photo.count({
       where: { property_id: propertyId },
       transaction,
     });
@@ -512,10 +448,10 @@ exports.uploadPhoto = async (req, res) => {
 
     const photoUrl = await uploadFile(req.file);
 
-    const newPhoto = await PropertyPhoto.create({
+    const newPhoto = await Photo.create({
       property_id: propertyId,
       photo_url: photoUrl,
-      is_primary: false, 
+      is_primary: false,
     }, { transaction });
 
     await transaction.commit();
