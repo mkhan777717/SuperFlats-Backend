@@ -95,8 +95,8 @@ exports.createFlat = async (req, res) => {
             throw err;
         }
 
-        // 3. Update Property Unit Count
-        await property.increment(countColumn, { by: 1, transaction });
+        // 3. Update Property Unit Count (DECREMENT available count)
+        await property.decrement(countColumn, { by: 1, transaction });
 
         await transaction.commit();
 
@@ -266,10 +266,10 @@ exports.deleteFlat = async (req, res) => {
         await Photo.destroy({ where: { flat_id: flatId }, transaction }); // Explicitly delete photos first
         await flat.destroy({ transaction });
 
-        // 3. Update Property Unit Count (Decrement)
+        // 3. Update Property Unit Count (INCREMENT available count)
         const property = await Property.findByPk(propertyId, { transaction });
         if (property) {
-            await property.decrement(countColumn, { by: 1, transaction });
+            await property.increment(countColumn, { by: 1, transaction });
         } else {
             // Should not happen, but good check
             logger.warn(`Property ID ${propertyId} not found during flat deletion cleanup.`);
@@ -364,10 +364,10 @@ exports.updateFlat = async (req, res) => {
                 const property = await Property.findByPk(flat.property_id, { transaction });
 
                 if (property) {
-                    // Decrement old type count and Increment new type count
-                    await property.decrement(oldColumn, { by: 1, transaction });
-                    await property.increment(newColumn, { by: 1, transaction });
-                    logger.info(`Flat ID ${flatId} type changed: Decremented ${oldColumn} and Incremented ${newColumn} on Property ID ${flat.property_id}`);
+                    // Increment old type's available count and Decrement new type's available count
+                    await property.increment(oldColumn, { by: 1, transaction });
+                    await property.decrement(newColumn, { by: 1, transaction });
+                    logger.info(`Flat ID ${flatId} type changed: Incremented ${oldColumn} and Decremented ${newColumn} on Property ID ${flat.property_id}`);
                 }
             } else {
                 // If the new type is invalid, block the update
