@@ -35,6 +35,7 @@ const createPropertySchema = Joi.object({
   is_managed: Joi.boolean().optional()
 });
 
+
 // Joi schema for creating a new listing
 const createListingSchema = Joi.object({
   property_id: Joi.number().integer().required(),
@@ -141,6 +142,29 @@ const updateLedgerEntrySchema = Joi.object({
   date: Joi.date().iso().optional(),
 }).min(1); // Ensure at least one field is provided for update
 
+// Joi schema for creating a new Flat entity (UPDATED)
+const createFlatSchema = Joi.object({
+  title: Joi.string().min(3).required(),
+  description: Joi.string().optional().allow(''),
+  unit_number: Joi.string().trim().uppercase().min(1).required(),
+  type: Joi.string().valid('1RK', '1BHK', '2BHK', '3BHK', '3BHK+').required(),
+  area_sqft: Joi.number().precision(2).optional().allow(null), // Changed to allow decimal
+  flatStatus: Joi.string().valid('available', 'occupied', 'maintenance').optional().default('available'),
+  unique_amenities: Joi.array().items(Joi.string()).optional(),
+});
+
+// Joi schema for updating a Flat entity (NEW)
+const updateFlatSchema = Joi.object({
+  title: Joi.string().min(3).optional(),
+  description: Joi.string().optional().allow(''),
+  unit_number: Joi.string().trim().uppercase().min(1).optional(),
+  type: Joi.string().valid('1RK', '1BHK', '2BHK', '3BHK', '3BHK+').optional(),
+  area_sqft: Joi.number().precision(2).optional().allow(null),
+  flatStatus: Joi.string().valid('available', 'occupied', 'maintenance').optional(),
+  unique_amenities: Joi.array().items(Joi.string()).optional(),
+}).min(1);
+
+
 module.exports = {
   userRegistrationSchema,
   createPropertySchema,
@@ -156,5 +180,7 @@ module.exports = {
   updateLeaseSchema,
   updateAppointmentStatusSchema,
   createLedgerEntrySchema,
-  updateLedgerEntrySchema
+  updateLedgerEntrySchema,
+  createFlatSchema,
+  updateFlatSchema
 };

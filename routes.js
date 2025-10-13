@@ -13,6 +13,8 @@ const leaseController = require('./controllers/leaseController');
 const userController = require('./controllers/userController');
 const tenantController = require('./controllers/tenantController');
 const ledgerController = require('./controllers/ledgerController');
+const flatController = require('./controllers/flatController');
+
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -119,6 +121,15 @@ router.get('/tenants', authMiddleware, roleMiddleware('admin'), tenantController
 router.get('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.getTenantById);
 router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.updateTenant);
 router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.deleteTenant);
+
+// -------------------- Flats Routes --------------------
+router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
+router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatsByProperty);
+router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
+router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);
+router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
+// Upload a photo for a flat
+router.post('/flats/:flatId/photos', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), flatController.uploadFlatPhoto);
 
 // -------------------- Ledger Routes (Admin-Only) --------------------
 router.get('/ledgers/company/entries/', authMiddleware, roleMiddleware('admin'), ledgerController.getAllCompanyEntries);

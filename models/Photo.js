@@ -13,6 +13,10 @@ module.exports = (sequelize) => {
             type: DataTypes.INTEGER,
             allowNull: false,
         },
+        flat_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
         photo_url: {
             type: DataTypes.TEXT,
             allowNull: false,
@@ -25,9 +29,11 @@ module.exports = (sequelize) => {
         tableName: 'photos',
         timestamps: false,
     });
-
     Photo.associate = (models) => {
-        // A property photo belongs to a single property.
+        Photo.belongsTo(models.Flat, {
+            foreignKey: 'flat_id',
+            as: 'flat',
+        });
         Photo.belongsTo(models.Property, {
             foreignKey: 'property_id',
             as: 'property',
