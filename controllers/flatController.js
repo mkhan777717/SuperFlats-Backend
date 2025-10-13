@@ -440,6 +440,74 @@ exports.updateFlat = async (req, res) => {
     }
 };
 
+/**
+ * Deletes a single photo from a flat by its ID and reassigns primary status if needed.
+ */
+exports.deleteFlatPhoto = async (req, res) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+        const { flatId, photoId } = req.params;
+
+        // 1. Find the photo to be deleted
+        const photo = await Photo.findByPk(photoId, { transaction });
+
+        if (!photo) {
+            await transaction.rollback();
+            return res.status(404).json({ message: 'Photo not found.' });
+        }
+
+        // 2. Security & Authorization: Ensure the photo belongs to the flat and the user owns the flat.
+        if (photo.flat_id !== parseInt(flatId, 10)) {
+            await transaction.rollback();
+            return res.status(403).json({ message: 'Photo does not belong to the specified flat.' });
+        }
+
+        const flat = await Flat.findByPk(flatId, { attributes: ['company_id'], transaction });
+        if (!req.user || !req.user.employee || !flat || flat.company_id !== req.user.employee.company_id) {
+            await transaction.rollback();
+            return res.status(403).json({ message: 'You are not authorized to perform this action.' });
+        }
+
+        const wasPrimary = photo.is_primary;
+
+        // 3. Delete the photo file from storage (e.g., S3). Tolerate failure here.
+        try {
+            await deleteFile(photo.photo_url, 'photo');
+        } catch (err) {
+            logger.warn(`Failed to delete photo from storage for photo ID ${photoId}: ${err.message}`);
+        }
+
+        // 4. Delete the photo record from the database
+        await photo.destroy({ transaction });
+
+        // 5. If the deleted photo was the primary, assign a new primary
+        if (wasPrimary) {
+            const nextPhoto = await Photo.findOne({
+                where: { flat_id: flatId },
+                order: [['id', 'ASC']], // Pick the oldest remaining photo as the new primary
+                transaction,
+            });
+
+            if (nextPhoto) {
+                await nextPhoto.update({ is_primary: true }, { transaction });
+                logger.info(`Reassigned primary photo to ID ${nextPhoto.id} for flat ID ${flatId}.`);
+            }
+        }
+
+        await transaction.commit();
+        logger.info(`Photo with ID ${photoId} deleted successfully from flat ID ${flatId}.`);
+        res.status(200).json({ message: 'Photo deleted successfully.' });
+
+    } catch (error) {
+        if (transaction.finished !== 'commit') {
+            await transaction.rollback();
+        }
+        logger.error(`Error deleting photo with ID ${req.params.photoId}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+
 // -----------------------------------------------------------
 /**
  * Handles the upload of a single photo and links it to a specific flat.
@@ -447,14 +515,20 @@ exports.updateFlat = async (req, res) => {
 exports.uploadFlatPhoto = async (req, res) => {
     const transaction = await db.sequelize.transaction();
     try {
-        const flatId = req.params.flatId;
+        const { flatId } = req.params;
 
         if (!flatId || !req.file) {
             await transaction.rollback();
             return res.status(400).json({ message: 'Flat ID and file upload are required.' });
         }
 
-        const flat = await Flat.findByPk(flatId, { transaction });
+        const parsedFlatId = parseInt(flatId, 10);
+        if (isNaN(parsedFlatId)) {
+            await transaction.rollback();
+            return res.status(400).json({ message: 'Invalid Flat ID format.' });
+        }
+
+        const flat = await Flat.findByPk(parsedFlatId, { transaction });
         if (!flat) {
             await transaction.rollback();
             return res.status(404).json({ message: 'Flat not found.' });
@@ -467,7 +541,7 @@ exports.uploadFlatPhoto = async (req, res) => {
         }
 
         const photoCount = await Photo.count({
-            where: { flat_id: flatId }, // Check count linked to flat_id
+            where: { flat_id: parsedFlatId }, // Check count linked to flat_id
             transaction,
         });
 
@@ -482,7 +556,8 @@ exports.uploadFlatPhoto = async (req, res) => {
         let newPhoto;
         try {
             newPhoto = await Photo.create({
-                flat_id: flatId, // Link to flat_id
+                property_id: flat.property_id, // 👈 ADD THIS LINE
+                flat_id: parsedFlatId, // Use the parsed integer ID
                 photo_url: photoUrl,
                 is_primary: photoCount === 0, // Set the first photo as primary automatically
             }, { transaction });
@@ -494,7 +569,7 @@ exports.uploadFlatPhoto = async (req, res) => {
         }
 
         await transaction.commit();
-        logger.info(`Photo uploaded and linked to flat ID ${flatId}.`);
+        logger.info(`Photo uploaded and linked to flat ID ${parsedFlatId}.`);
         res.status(201).json({ message: 'Photo uploaded successfully.', photo: newPhoto });
 
     } catch (error) {

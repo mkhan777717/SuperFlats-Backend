@@ -130,6 +130,7 @@ router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'),
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
 // Upload a photo for a flat
 router.post('/flats/:flatId/photos', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), flatController.uploadFlatPhoto);
+router.delete('/flats/:flatId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.deleteFlatPhoto);
 
 // -------------------- Ledger Routes (Admin-Only) --------------------
 router.get('/ledgers/company/entries/', authMiddleware, roleMiddleware('admin'), ledgerController.getAllCompanyEntries);
