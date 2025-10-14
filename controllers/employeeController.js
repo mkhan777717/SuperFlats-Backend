@@ -2,6 +2,7 @@ const db = require('../models');
 const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
 const { employeeCreationSchema } = require('../utils/validator');
+const { Op } = require('sequelize'); // 👈 ADDED Op
 const Employee = db.Employee;
 const User = db.User;
 const Company = db.Company;
@@ -181,6 +182,29 @@ exports.updateEmployeeRole = async (req, res) => {
     if (!user) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Associated user not found.' });
+    }
+
+    // If downgrading the role of an admin, ensure there is at least one other admin left.
+    if (user.role === 'admin' && role !== 'admin') {
+      const otherAdminsCount = await Employee.count({
+        include: [{
+          model: User,
+          as: 'user',
+          where: { role: 'admin' },
+          required: true,
+        }],
+        where: {
+          company_id: employee.company_id,
+          id: { [Op.ne]: id } // Exclude the current employee from the count
+        },
+        transaction
+      });
+
+      if (otherAdminsCount === 0) {
+        await transaction.rollback();
+        logger.warn(`Failed to update role for employee ID ${id}: Cannot downgrade the last admin.`);
+        return res.status(400).json({ message: 'Cannot downgrade the last admin. The company must have at least one administrator.' });
+      }
     }
 
     user.role = role;
