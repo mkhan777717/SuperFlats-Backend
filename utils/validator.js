@@ -90,19 +90,7 @@ const createAppointmentSchema = Joi.object({
   scheduled_at: Joi.date().iso().required(),
 });
 
-// Joi schema for creating a new grouped listing
-const createGroupedListingSchema = Joi.object({
-  name: Joi.string().min(3).required(),
-  description: Joi.string().allow('').optional(),
-  listing_ids: Joi.array().items(Joi.number().integer()).min(1).required(),
-});
 
-// Joi schema for updating a grouped listing
-const updateGroupedListingSchema = Joi.object({
-  name: Joi.string().min(3).optional(),
-  description: Joi.string().allow('').optional(),
-  listing_ids: Joi.array().items(Joi.number().integer()).optional(),
-});
 
 // Joi schema for validating a new lease creation request
 const createLeaseSchema = Joi.object({
@@ -172,8 +160,6 @@ module.exports = {
   employeeCreationSchema,
   updateEmployeeRoleSchema,
   createAppointmentSchema,
-  createGroupedListingSchema,
-  updateGroupedListingSchema,
   createTenantSchema,
   updateTenantSchema,
   createLeaseSchema,

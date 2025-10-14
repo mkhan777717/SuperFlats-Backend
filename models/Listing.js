@@ -86,14 +86,7 @@ module.exports = (sequelize) => {
       onDelete: 'CASCADE',
     });
 
-    // This is a many-to-many relationship, so onDelete: 'CASCADE' is applied to the join table.
-    Listing.belongsToMany(models.GroupedListing, {
-      through: models.GroupedListingItem,
-      foreignKey: 'listing_id',
-      otherKey: 'group_id',
-      as: 'groups',
-      onDelete: 'CASCADE',
-    });
+
   };
 
   return Listing;

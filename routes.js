@@ -6,7 +6,6 @@ const multer = require('multer');
 const authController = require('./controllers/authController');
 const propertyController = require('./controllers/propertyController');
 const appointmentController = require('./controllers/appointmentController');
-const groupedListingController = require('./controllers/groupedListingController');
 const employeeController = require('./controllers/employeeController');
 const listingController = require('./controllers/listingController');
 const leaseController = require('./controllers/leaseController');
@@ -94,15 +93,6 @@ router.get('/employees/', authMiddleware, roleMiddleware('admin', 'agent'), empl
 router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeeById);
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('admin'), employeeController.deleteEmployee);
-
-
-// -------------------- Grouped Listing Routes --------------------
-router.post('/grouped-listings', authMiddleware, roleMiddleware('admin'), groupedListingController.createGroupedListing);
-router.get('/grouped-listings', groupedListingController.getAllGroupedListings);
-router.get('/grouped-listings/:id', groupedListingController.getGroupedListingById);
-router.patch('/grouped-listings/:id', authMiddleware, roleMiddleware('admin'), groupedListingController.updateGroupedListing);
-router.delete('/grouped-listings/:id', authMiddleware, roleMiddleware('admin'), groupedListingController.deleteGroupedListing);
-
 
 // -------------------- Lease Routes --------------------
 router.post('/leases', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.createLease);
