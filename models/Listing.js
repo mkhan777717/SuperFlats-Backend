@@ -7,17 +7,29 @@ module.exports = (sequelize) => {
       primaryKey: true,
       autoIncrement: true,
     },
-    property_id: {
+    flat_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'flats',
+        key: 'id',
+      },
     },
     lister_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
     },
     company_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'companies',
+        key: 'id',
+      },
     },
     title: {
       type: DataTypes.STRING,
@@ -26,38 +38,34 @@ module.exports = (sequelize) => {
     description: {
       type: DataTypes.TEXT,
     },
-    price: {
+    monthly_rent: {
       type: DataTypes.DECIMAL(12, 2),
     },
-    lease_expected_amount: {
+    security_amount: {
       type: DataTypes.DECIMAL(12, 2),
     },
-    deposit_expected_amount: {
-      type: DataTypes.DECIMAL(12, 2),
+    security_type: {
+      type: DataTypes.ENUM('lease', 'deposit'),
+      allowNull: false,
+      defaultValue: 'deposit',
     },
     status: {
-      type: DataTypes.STRING,
+      type: DataTypes.ENUM('active', 'closed', 'pending'),
       allowNull: false,
       defaultValue: 'pending',
-      validate: {
-        isIn: [['active', 'closed', 'pending']],
-      },
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
     },
   }, {
     tableName: 'listings',
-    timestamps: false,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
   });
 
   Listing.associate = (models) => {
-    // A listing belongs to a property.
-    Listing.belongsTo(models.Property, {
-      foreignKey: 'property_id',
-      as: 'property',
+    // A listing belongs to a flat.
+    Listing.belongsTo(models.Flat, {
+      foreignKey: 'flat_id',
+      as: 'flat',
     });
 
     // A listing has a lister (the user who created it).
@@ -85,8 +93,6 @@ module.exports = (sequelize) => {
       as: 'lease',
       onDelete: 'CASCADE',
     });
-
-
   };
 
   return Listing;

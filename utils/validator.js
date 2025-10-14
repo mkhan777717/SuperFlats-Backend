@@ -36,17 +36,27 @@ const createPropertySchema = Joi.object({
 });
 
 
-// Joi schema for creating a new listing
+// Joi schema for creating a new listing (UPDATED)
 const createListingSchema = Joi.object({
-  property_id: Joi.number().integer().required(),
-  lister_id: Joi.number().integer().required(),
+  flat_id: Joi.number().integer().positive().required(),
   title: Joi.string().min(5).required(),
-  description: Joi.string().min(20).required(),
-  price: Joi.number().positive(),
-  lease_expected_amount: Joi.number().positive(),
-  deposit_expected_amount: Joi.number().positive(),
-  status: Joi.string().valid('active', 'pending', 'closed').required(),
+  description: Joi.string().min(10).optional().allow(''),
+  monthly_rent: Joi.number().precision(2).positive().required(),
+  security_amount: Joi.number().precision(2).positive().required(),
+  security_type: Joi.string().valid('lease', 'deposit').required(),
+  status: Joi.string().valid('active', 'closed', 'pending').optional().default('pending'),
 });
+
+// Joi schema for updating a listing (NEW)
+const updateListingSchema = Joi.object({
+  title: Joi.string().min(5).optional(),
+  description: Joi.string().min(10).optional().allow(''),
+  monthly_rent: Joi.number().precision(2).positive().optional(),
+  security_amount: Joi.number().precision(2).positive().optional(),
+  security_type: Joi.string().valid('lease', 'deposit').optional(),
+  status: Joi.string().valid('active', 'closed', 'pending').optional(),
+}).min(1);
+
 
 // Joi schema for creating a new tenant
 const createTenantSchema = Joi.object({
@@ -157,6 +167,7 @@ module.exports = {
   userRegistrationSchema,
   createPropertySchema,
   createListingSchema,
+  updateListingSchema, 
   employeeCreationSchema,
   updateEmployeeRoleSchema,
   createAppointmentSchema,

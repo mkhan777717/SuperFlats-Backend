@@ -1,208 +1,251 @@
 const db = require('../models');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
+const { createListingSchema, updateListingSchema } = require('../utils/validator');
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
 const Company = db.Company;
-const PropertyFeature = db.PropertyFeature;
+const Flat = db.Flat; 
 const Photo = db.Photo;
 
 
-// Create a new listing
-exports.createListing = async (req, res) => {
+/**
+ * Provides a public-facing search for all active listings with comprehensive filters.
+ */
+exports.publicSearchListings = async (req, res) => {
     try {
-        const { property_id, title, description, price, lease_expected_amount, deposit_expected_amount, status } = req.body;
+        const {
+            keywords,
+            city,
+            min_rent,
+            max_rent,
+            type, // e.g., '1BHK', '2BHK'
+            sort_by = 'created_at',
+            sort_order = 'DESC',
+            limit = 12,
+            offset = 0,
+        } = req.query;
 
-        // Ensure user and company ID are available
-        if (!req.user || !req.user.id || !req.user.company_id) {
-            return res.status(401).json({ message: 'Authentication required or company not associated with user.' });
+        // --- Build Where Clauses ---
+        const listingWhere = { status: 'active' }; // Core requirement: only active listings
+        const propertyWhere = {};
+        const flatWhere = {};
+
+        // Rent filter
+        if (min_rent || max_rent) {
+            listingWhere.monthly_rent = {};
+            if (min_rent) listingWhere.monthly_rent[Op.gte] = parseFloat(min_rent);
+            if (max_rent) listingWhere.monthly_rent[Op.lte] = parseFloat(max_rent);
         }
 
-        const listerId = req.user.id;
-        const companyId = req.user.company_id;
-
-        // Check if the property exists and belongs to the authenticated user's company
-        const property = await Property.findOne({ where: { id: property_id, company_id: companyId } });
-        if (!property) {
-            return res.status(404).json({ message: 'Property not found or it does not belong to your company.' });
+        // Location filter
+        if (city) {
+            propertyWhere.city = { [Op.like]: `%${city}%` };
         }
 
-        // Check if a listing for this property already exists
-        const existingListing = await Listing.findOne({ where: { property_id } });
+        // Flat type filter
+        if (type) {
+            flatWhere.type = type;
+        }
+
+        // Keyword search across multiple fields
+        if (keywords) {
+            const keywordQuery = { [Op.like]: `%${keywords}%` };
+            listingWhere[Op.or] = [
+                { title: keywordQuery },
+                { description: keywordQuery },
+                { '$flat.property.name$': keywordQuery },
+                { '$flat.property.address$': keywordQuery },
+                { '$flat.property.city$': keywordQuery },
+            ];
+        }
+
+        // --- Sorting ---
+        const validSortColumns = ['created_at', 'monthly_rent'];
+        const finalSortBy = validSortColumns.includes(sort_by) ? sort_by : 'created_at';
+        const finalSortOrder = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const order = [[finalSortBy, finalSortOrder]];
+
+        // --- Database Query ---
+        const { count, rows } = await Listing.findAndCountAll({
+            where: listingWhere,
+            include: [
+                {
+                    model: Flat,
+                    as: 'flat',
+                    required: true,
+                    where: flatWhere,
+                    attributes: ['id', 'type', 'area_sqft', 'unit_number'],
+                    include: [
+                        {
+                            model: Property,
+                            as: 'property',
+                            required: true,
+                            where: propertyWhere,
+                            attributes: ['id', 'name', 'city', 'address'],
+                        },
+                        {
+                            model: Photo,
+                            as: 'photos',
+                            attributes: ['id', 'photo_url', 'is_primary'],
+                            separate: true, // Optimize for hasMany with limit
+                            order: [['is_primary', 'DESC']],
+                        },
+                    ],
+                },
+                {
+                    model: Company,
+                    as: 'company',
+                    attributes: ['id', 'name'],
+                },
+            ],
+            order,
+            limit: parseInt(limit, 10),
+            offset: parseInt(offset, 10),
+            distinct: true, // Necessary for correct count with joins
+            subQuery: false, // Necessary for keyword search on nested associations
+        });
+
+        res.status(200).json({
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: Math.floor(offset / limit) + 1,
+            listings: rows,
+        });
+    } catch (error) {
+        logger.error('Error in public listing search:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+
+// Create a new listing for a flat
+exports.createListing = async (req, res) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+        const { error } = createListingSchema.validate(req.body);
+        if (error) {
+            await transaction.rollback();
+            return res.status(400).json({ message: error.details[0].message });
+        }
+
+        const { flat_id, title, description, monthly_rent, security_amount, security_type, status } = req.body;
+
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            await transaction.rollback();
+            return res.status(401).json({ message: 'Authentication required.' });
+        }
+
+        const lister_id = req.user.id;
+        const company_id = req.user.employee.company_id;
+
+        const flat = await Flat.findOne({ where: { id: flat_id, company_id: company_id }, transaction });
+        if (!flat) {
+            await transaction.rollback();
+            return res.status(404).json({ message: 'Flat not found or it does not belong to your company.' });
+        }
+
+        const existingListing = await Listing.findOne({ where: { flat_id }, transaction });
         if (existingListing) {
-            return res.status(409).json({ message: 'A listing for this property already exists.' });
+            await transaction.rollback();
+            return res.status(409).json({ message: 'A listing for this flat already exists.' });
         }
 
         const newListing = await Listing.create({
-            property_id,
-            lister_id: listerId,
-            company_id: companyId,
+            flat_id,
+            lister_id,
+            company_id,
             title,
             description,
-            price,
-            lease_expected_amount,
-            deposit_expected_amount,
+            monthly_rent,
+            security_amount,
+            security_type,
             status,
-        });
+        }, { transaction });
 
-        logger.info(`New listing created by user ${listerId} for property ${property_id} and company ${companyId}`);
+        await transaction.commit();
+        logger.info(`New listing created by user ${lister_id} for flat ${flat_id}`);
         res.status(201).json({ message: 'Listing created successfully.', listing: newListing });
     } catch (error) {
+        if (transaction.finished !== 'commit') await transaction.rollback();
         logger.error('Error creating listing:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
 
-// Get all listings with search and filters
-exports.searchListings = async (req, res) => {
-    try {
-        const {
-            min_price,
-            max_price,
-            status,
-            keywords,
-            company_id,
-            sort_by,
-            sort_order,
-            limit,
-            offset,
-        } = req.query;
 
-        const whereClause = {};
-
-        // Price filtering
-        if (min_price) {
-            whereClause.price = { [Op.gte]: parseFloat(min_price) };
-        }
-        if (max_price) {
-            if (whereClause.price) {
-                whereClause.price = { ...whereClause.price, [Op.lte]: parseFloat(max_price) };
-            } else {
-                whereClause.price = { [Op.lte]: parseFloat(max_price) };
-            }
-        }
-
-        // Status filter
-        if (status) {
-            whereClause.status = status;
-        }
-
-        // Company filter
-        if (company_id) {
-            whereClause.company_id = company_id;
-        }
-
-        // Keyword search in title and description
-        if (keywords) {
-            whereClause[Op.or] = [
-                { title: { [Op.like]: `%${keywords}%` } },
-                { description: { [Op.like]: `%${keywords}%` } },
-            ];
-        }
-
-        const orderClause = [];
-        if (sort_by) {
-            orderClause.push([sort_by, sort_order || 'ASC']);
-        } else {
-            // Default sort by created_at in descending order
-            orderClause.push(['created_at', 'DESC']);
-        }
-
-        const listings = await Listing.findAll({
-            where: whereClause,
-            include: [
-                {
-                    model: Property,
-                    as: 'property',
-                    include: ['photos'],
-                },
-            ],
-            order: orderClause,
-            limit: limit ? parseInt(limit, 10) : undefined,
-            offset: offset ? parseInt(offset, 10) : undefined,
-        });
-
-        res.status(200).json(listings);
-    } catch (error) {
-        logger.error('Error fetching listings:', error);
-        res.status(500).json({ error: 'Internal server error.' });
-    }
-};
-
-// Get all listings
-exports.getAllListings = async (req, res) => {
-    try {
-        const listings = await Listing.findAll({
-            include: [
-                { model: Property, as: 'property', include: ['photos', 'features'] },
-                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
-                { model: Company, as: 'company' },
-            ],
-            order: [['created_at', 'DESC']],
-        });
-        res.status(200).json(listings);
-    } catch (error) {
-        logger.error('Error fetching listings:', error);
-        res.status(500).json({ error: 'Internal server error.' });
-    }
-};
-
-// Get My listings
+// Get all listings for the authenticated user's company
 exports.getMyListings = async (req, res) => {
     try {
-        if (!req.user || !req.user.company_id) {
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
             return res.status(403).json({ message: 'User is not associated with a company.' });
         }
 
-        const companyId = req.user.company_id;
+        const company_id = req.user.employee.company_id;
+        const { limit = 10, offset = 0 } = req.query; // Get pagination params
 
-        const listings = await Listing.findAll({
-            where: { company_id: companyId },
+        const { count, rows } = await Listing.findAndCountAll({ // Use findAndCountAll
+            where: { company_id },
             include: [
-                { model: Property, as: 'property', include: ['photos', 'features'] },
-                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
-                { model: Company, as: 'company' },
+                {
+                    model: Flat,
+                    as: 'flat',
+                    include: [
+                        { model: Property, as: 'property', attributes: ['id', 'name'] },
+                        { model: Photo, as: 'photos', where: { is_primary: true }, required: false }
+                    ]
+                },
+                { model: User, as: 'lister', attributes: ['id', 'name'] },
             ],
             order: [['created_at', 'DESC']],
+            limit: parseInt(limit, 10),
+            offset: parseInt(offset, 10),
+            distinct: true, // Important for correct counts with joins
         });
 
-        res.status(200).json(listings);
+        res.status(200).json({
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: Math.floor(offset / limit) + 1,
+            listings: rows,
+        });
     } catch (error) {
         logger.error('Error fetching my listings:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
 
-// Get available properties for listing
-exports.getAvailablePropertiesForListing = async (req, res) => {
+// Get available flats for listing
+exports.getAvailableFlatsForListing = async (req, res) => {
     try {
-        if (!req.user || !req.user.id || !req.user.company_id) {
-            return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            return res.status(401).json({ message: 'Authentication required.' });
         }
 
-        const companyId = req.user.company_id;
+        const company_id = req.user.employee.company_id;
 
-        // Fetch properties owned by the user's company that are not already listed
-        const properties = await Property.findAll({
+        const availableFlats = await Flat.findAll({
             where: {
-                company_id: companyId,
+                company_id: company_id,
                 id: {
-                    [Op.notIn]: db.Sequelize.literal(`(SELECT property_id FROM listings)`),
+                    [Op.notIn]: db.sequelize.literal(`(SELECT flat_id FROM listings WHERE company_id = ${company_id})`),
                 },
-            }, include: [
-                { model: Company, as: 'company', attributes: ['id', 'name'] },
-                { model: PropertyFeature, as: 'features' },
-                { model: Photo, as: 'photos' },
-            ]
+                flatStatus: 'available',
+            },
+            include: [
+                { model: Property, as: 'property', attributes: ['id', 'name', 'address'] },
+            ],
+            order: [['id', 'DESC']]
         });
 
-        res.status(200).json(properties);
+        res.status(200).json(availableFlats);
     } catch (error) {
-        logger.error('Error fetching available properties for listing:', error);
+        logger.error('Error fetching available flats for listing:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
+
 // Get a single listing by ID
 exports.getListingById = async (req, res) => {
     try {
@@ -210,15 +253,14 @@ exports.getListingById = async (req, res) => {
         const listing = await Listing.findByPk(id, {
             include: [
                 {
-                    model: Property,
-                    as: 'property',
-                    include: ['photos'],
+                    model: Flat,
+                    as: 'flat',
+                    include: [
+                        { model: Property, as: 'property' },
+                        { model: Photo, as: 'photos' }
+                    ]
                 },
-                {
-                    model: User,
-                    as: 'lister',
-                    attributes: { exclude: ['password'] },
-                },
+                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
                 { model: Company, as: 'company' },
             ],
         });
@@ -236,46 +278,41 @@ exports.getListingById = async (req, res) => {
 
 // Update a listing
 exports.updateListing = async (req, res) => {
+    const transaction = await db.sequelize.transaction();
     try {
         const { id } = req.params;
-
-        // Safely check for req.user and its properties
-        if (!req.user || !req.user.id || !req.user.company_id) {
-            return res.status(401).json({ message: 'Authentication required or company not associated with user.' });
+        const { error } = updateListingSchema.validate(req.body);
+        if (error) {
+            await transaction.rollback();
+            return res.status(400).json({ message: error.details[0].message });
         }
 
-        const listerId = req.user.id;
-        const listerCompanyId = req.user.company_id;
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            await transaction.rollback();
+            return res.status(401).json({ message: 'Authentication required.' });
+        }
 
-        const listing = await Listing.findOne({ where: { id } });
+        const lister_id = req.user.id;
+        const company_id = req.user.employee.company_id;
+
+        const listing = await Listing.findByPk(id, { transaction });
         if (!listing) {
+            await transaction.rollback();
             return res.status(404).json({ message: 'Listing not found.' });
         }
 
-        // Check if the authenticated user is the lister and belongs to the same company
-        const isAuthorized = listing.lister_id === listerId && listing.company_id === listerCompanyId;
-        if (!isAuthorized) {
+        if (listing.company_id !== company_id) {
+            await transaction.rollback();
             return res.status(403).json({ message: 'Forbidden: You do not have permission to update this listing.' });
         }
 
-        // If property_id is being updated, check for duplicates
-        if (req.body.property_id && req.body.property_id !== listing.property_id) {
-            const existingListing = await Listing.findOne({
-                where: {
-                    property_id: req.body.property_id,
-                    id: { [Op.ne]: id }
-                }
-            });
-            if (existingListing) {
-                return res.status(409).json({ message: 'A listing for this property already exists.' });
-            }
-        }
+        await listing.update(req.body, { transaction });
+        await transaction.commit();
 
-        await listing.update(req.body);
-
-        logger.info(`Listing ${id} updated by user ${listerId}`);
+        logger.info(`Listing ${id} updated by user ${lister_id}`);
         res.status(200).json({ message: 'Listing updated successfully.', listing });
     } catch (error) {
+        if (transaction.finished !== 'commit') await transaction.rollback();
         logger.error(`Error updating listing ${req.params.id}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
@@ -283,33 +320,36 @@ exports.updateListing = async (req, res) => {
 
 // Delete a listing
 exports.deleteListing = async (req, res) => {
+    const transaction = await db.sequelize.transaction();
     try {
         const { id } = req.params;
 
-        // Safely check for req.user and its properties
-        if (!req.user || !req.user.id || !req.user.company_id) {
-            return res.status(401).json({ message: 'Authentication required or company not associated with user.' });
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            await transaction.rollback();
+            return res.status(401).json({ message: 'Authentication required.' });
         }
 
-        const listerId = req.user.id;
-        const listerCompanyId = req.user.company_id;
+        const lister_id = req.user.id;
+        const company_id = req.user.employee.company_id;
 
-        const listing = await Listing.findOne({ where: { id } });
+        const listing = await Listing.findByPk(id, { transaction });
         if (!listing) {
+            await transaction.rollback();
             return res.status(404).json({ message: 'Listing not found.' });
         }
 
-        // Check if the authenticated user is the lister and belongs to the same company
-        const isAuthorized = listing.lister_id === listerId && listing.company_id === listerCompanyId;
-        if (!isAuthorized) {
+        if (listing.company_id !== company_id) {
+            await transaction.rollback();
             return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this listing.' });
         }
 
-        await listing.destroy();
+        await listing.destroy({ transaction });
+        await transaction.commit();
 
-        logger.info(`Listing ${id} deleted by user ${listerId}`);
+        logger.info(`Listing ${id} deleted by user ${lister_id}`);
         res.status(200).json({ message: 'Listing deleted successfully.' });
     } catch (error) {
+        if (transaction.finished !== 'commit') await transaction.rollback();
         logger.error(`Error deleting listing ${req.params.id}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
