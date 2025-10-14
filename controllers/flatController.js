@@ -71,13 +71,13 @@ exports.createFlat = async (req, res) => {
             await transaction.rollback();
             return res.status(400).json({ message: 'Invalid flat type provided.' });
         }
-
+        propertyIdInt = parseInt(propertyId, 10);
         // 2. Create the Flat (handle unique constraint)
         let newFlat;
         try {
             newFlat = await Flat.create({
                 company_id,
-                property_id: propertyId,
+                property_id: propertyIdInt,
                 title: title,
                 description: description,
                 unit_number: normalizedUnitNumber,
@@ -90,7 +90,7 @@ exports.createFlat = async (req, res) => {
             if (err instanceof UniqueConstraintError) {
                 await transaction.rollback();
                 logger.warn(`Duplicate flat for property ${propertyId} unit_number ${unit_number}`);
-                return res.status(409).json({ message: 'A flat with that unit_number already exists for this property.' });
+                return res.status(409).json({ message: 'A flat with that Unit Number already exists for this property.' });
             }
             throw err;
         }
