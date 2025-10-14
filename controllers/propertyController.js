@@ -144,7 +144,6 @@ exports.getProperties = async (req, res) => {
   const validRoomCountTypes = ['1rk', '1bhk', '2bhk', '3bhk', '3bhk_plus'];
 
 
-  // FIX APPLIED HERE: Using Op.like for MySQL compatibility
   if (searchTerm) {
     andConditions.push({
       [Op.or]: [
@@ -376,7 +375,6 @@ exports.deleteProperty = async (req, res) => {
 
     // 2. Delete associated records (Photos)
     await Photo.destroy({ where: { property_id: id }, transaction });
-    // Note: PropertyFeature deletion is excluded per user request
 
     // 3. Delete the property itself
     await property.destroy({ transaction });

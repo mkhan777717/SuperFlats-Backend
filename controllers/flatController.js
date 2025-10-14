@@ -126,7 +126,6 @@ exports.getFlatsByProperty = async (req, res) => {
     const queryParams = req.query;
     const company_id = req.user.employee.company_id;
 
-    // CRITICAL: Verify Property Existence and Ownership first
     try {
         const property = await Property.findByPk(propertyId);
         if (!property || property.company_id !== company_id) {
@@ -258,7 +257,6 @@ exports.deleteFlat = async (req, res) => {
                 await deleteFile(photo.photo_url, 'photo');
             } catch (err) {
                 logger.warn(`Failed to delete photo from storage for photo id ${photo.id}: ${err.message || err}`);
-                // continue; don't block deletion if storage fails
             }
         }));
 
@@ -407,7 +405,7 @@ exports.updateFlat = async (req, res) => {
         }
 
         // If status is set to 'available', no lease_end_date exists in new model — nothing to clear
-        try { // 👈 ADDED try BLOCK
+        try { 
             await flat.update(updateData, { transaction });
         } catch (err) {
             if (err instanceof UniqueConstraintError) {
@@ -556,7 +554,7 @@ exports.uploadFlatPhoto = async (req, res) => {
         let newPhoto;
         try {
             newPhoto = await Photo.create({
-                property_id: flat.property_id, // 👈 ADD THIS LINE
+                property_id: flat.property_id,
                 flat_id: parsedFlatId, // Use the parsed integer ID
                 photo_url: photoUrl,
                 is_primary: photoCount === 0, // Set the first photo as primary automatically
