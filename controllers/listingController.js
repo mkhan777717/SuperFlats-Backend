@@ -21,8 +21,10 @@ exports.publicSearchListings = async (req, res) => {
             min_rent,
             max_rent,
             type, // e.g., '1BHK', '2BHK'
-            sort_by = 'created_at',
-            sort_order = 'DESC',
+            sort_by, // Accept snake_case
+            sortBy,  // Accept camelCase
+            sort_order,
+            sortOrder,
             limit = 12,
             offset = 0,
         } = req.query;
@@ -63,9 +65,15 @@ exports.publicSearchListings = async (req, res) => {
 
         // --- Sorting ---
         const validSortColumns = ['created_at', 'monthly_rent'];
-        const finalSortBy = validSortColumns.includes(sort_by) ? sort_by : 'created_at';
-        const finalSortOrder = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-        const order = [[finalSortBy, finalSortOrder]];
+        const reqSortBy = sort_by || sortBy || 'created_at'; // Use whichever is provided, default to created_at
+        const reqSortOrder = sort_order || sortOrder || 'DESC';
+        const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
+        const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+        // FIX: Cast monthly_rent to a number for correct sorting
+        const order = finalSortBy === 'monthly_rent'
+            ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
+            : [[finalSortBy, finalSortOrder]];
 
         // --- Database Query ---
         const { count, rows } = await Listing.findAndCountAll({
@@ -185,8 +193,10 @@ exports.getMyListings = async (req, res) => {
         const company_id = req.user.employee.company_id;
         const {
             keywords,
-            sort_by = 'created_at',
-            sort_order = 'DESC',
+            sort_by, // Accept snake_case
+            sortBy,  // Accept camelCase
+            sort_order,
+            sortOrder,
             limit = 10,
             offset = 0
         } = req.query;
@@ -205,9 +215,15 @@ exports.getMyListings = async (req, res) => {
 
         // --- Build Order Clause ---
         const validSortColumns = ['created_at', 'monthly_rent'];
-        const finalSortBy = validSortColumns.includes(sort_by) ? sort_by : 'created_at';
-        const finalSortOrder = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-        const order = [[finalSortBy, finalSortOrder]];
+        const reqSortBy = sort_by || sortBy || 'created_at'; // Use whichever is provided, default to created_at
+        const reqSortOrder = sort_order || sortOrder || 'DESC';
+        const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
+        const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+        // FIX: Cast monthly_rent to a number for correct sorting
+        const order = finalSortBy === 'monthly_rent'
+            ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
+            : [[finalSortBy, finalSortOrder]];
 
         const { count, rows } = await Listing.findAndCountAll({
             where: whereClause,
