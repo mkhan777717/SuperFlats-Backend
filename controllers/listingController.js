@@ -20,9 +20,9 @@ exports.publicSearchListings = async (req, res) => {
             city,
             min_rent,
             max_rent,
-            type, // e.g., '1BHK', '2BHK'
-            sort_by, // Accept snake_case
-            sortBy,  // Accept camelCase
+            type, 
+            sort_by,
+            sortBy,
             sort_order,
             sortOrder,
             limit = 12,
@@ -70,7 +70,6 @@ exports.publicSearchListings = async (req, res) => {
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-        // FIX: Cast monthly_rent to a number for correct sorting
         const order = finalSortBy === 'monthly_rent'
             ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
             : [[finalSortBy, finalSortOrder]];
@@ -97,7 +96,7 @@ exports.publicSearchListings = async (req, res) => {
                             model: Photo,
                             as: 'photos',
                             attributes: ['id', 'photo_url', 'is_primary'],
-                            separate: true, // Optimize for hasMany with limit
+                            separate: true, 
                             order: [['is_primary', 'DESC']],
                         },
                     ],
@@ -111,8 +110,8 @@ exports.publicSearchListings = async (req, res) => {
             order,
             limit: parseInt(limit, 10),
             offset: parseInt(offset, 10),
-            distinct: true, // Necessary for correct count with joins
-            subQuery: false, // Necessary for keyword search on nested associations
+            distinct: true,
+            subQuery: false,
         });
 
         res.status(200).json({
@@ -193,8 +192,8 @@ exports.getMyListings = async (req, res) => {
         const company_id = req.user.employee.company_id;
         const {
             keywords,
-            sort_by, // Accept snake_case
-            sortBy,  // Accept camelCase
+            sort_by, 
+            sortBy,  
             sort_order,
             sortOrder,
             limit = 10,
@@ -220,7 +219,6 @@ exports.getMyListings = async (req, res) => {
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-        // FIX: Cast monthly_rent to a number for correct sorting
         const order = finalSortBy === 'monthly_rent'
             ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
             : [[finalSortBy, finalSortOrder]];
@@ -231,7 +229,7 @@ exports.getMyListings = async (req, res) => {
                 {
                     model: Flat,
                     as: 'flat',
-                    required: true, // Ensures listings without flats are not returned
+                    required: true, 
                     include: [
                         { model: Property, as: 'property', attributes: ['id', 'name'], required: true },
                         { model: Photo, as: 'photos', where: { is_primary: true }, required: false }
@@ -243,7 +241,7 @@ exports.getMyListings = async (req, res) => {
             limit: parseInt(limit, 10),
             offset: parseInt(offset, 10),
             distinct: true,
-            subQuery: false, // Required for searching on nested model fields
+            subQuery: false, 
         });
 
         res.status(200).json({
