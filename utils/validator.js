@@ -5,10 +5,29 @@ const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({ // 👈 UPDATED for consistency
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({ 
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
 });
+
+// Joi schema for creating a new appointment
+const createAppointmentSchema = Joi.object({
+  listing_id: Joi.number().integer().positive().required(),
+  scheduled_at: Joi.date().iso().required(),
+});
+
+// Joi schema for updating an appointment
+const updateAppointmentSchema = Joi.object({
+  listing_id: Joi.number().integer().positive().optional(),
+  scheduled_at: Joi.date().iso().optional(),
+}).min(1);
+
+// Joi schema for assigning an employee to an appointment
+const assignEmployeeSchema = Joi.object({
+  employee_id: Joi.number().integer().positive().required(),
+});
+
+
 const updateAppointmentStatusSchema = Joi.object({
   status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').required(),
 });
@@ -42,7 +61,7 @@ const createListingSchema = Joi.object({
   title: Joi.string().min(5).required(),
   description: Joi.string().min(10).optional().allow(''),
   monthly_rent: Joi.number().precision(2).positive().required(),
-  security_amount: Joi.number().precision(2).min(0).required(), // 👈 CHANGED to min(0)
+  security_amount: Joi.number().precision(2).min(0).required(), 
   security_type: Joi.string().valid('lease', 'deposit').required(),
   status: Joi.string().valid('active', 'closed', 'pending').optional().default('pending'),
 });
@@ -52,13 +71,13 @@ const updateListingSchema = Joi.object({
   title: Joi.string().min(5).optional(),
   description: Joi.string().min(10).optional().allow(''),
   monthly_rent: Joi.number().precision(2).positive().optional(),
-  security_amount: Joi.number().precision(2).min(0).optional(), // 👈 CHANGED to min(0)
+  security_amount: Joi.number().precision(2).min(0).optional(), 
   security_type: Joi.string().valid('lease', 'deposit').optional(),
   status: Joi.string().valid('active', 'closed', 'pending').optional(),
 }).min(1);
 
 
-// NEW: Joi schema for creating a new booking
+// Joi schema for creating a new booking
 const createBookingSchema = Joi.object({
   flat_id: Joi.number().integer().positive().required(),
   tenant_id: Joi.number().integer().positive().required(),
@@ -69,7 +88,7 @@ const createBookingSchema = Joi.object({
   security_type: Joi.string().valid('lease', 'deposit').required(),
 });
 
-// NEW: Joi schema for updating a booking
+// Joi schema for updating a booking
 const updateBookingSchema = Joi.object({
   start_date: Joi.date().iso().optional(),
   end_date: Joi.date().iso().greater(Joi.ref('start_date')).optional(),
@@ -86,7 +105,7 @@ const createTenantSchema = Joi.object({
   phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  status: Joi.string().valid('available', 'occupied').optional(), // 👈 ADDED
+  status: Joi.string().valid('available', 'occupied').optional(), 
 });
 
 // Joi schema for updating a tenant
@@ -95,16 +114,21 @@ const updateTenantSchema = Joi.object({
   phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).optional().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  status: Joi.string().valid('available', 'occupied').optional(), // 👈 ADDED
-}).min(1); // Ensure at least one field is being updated
+  status: Joi.string().valid('available', 'occupied').optional(), 
+}).min(1); 
 
 
-// Joi schema for employee creation data
+// Joi schema for uploading an ID proof
+const idProofUploadSchema = Joi.object({
+  name: Joi.string().min(3).max(50).required(),
+});
+
+// Joi schema for creating a new employee
 const employeeCreationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({ // 👈 UPDATED for consistency
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
   role: Joi.string().valid('agent', 'admin').required(),
@@ -115,15 +139,10 @@ const updateEmployeeRoleSchema = Joi.object({
   role: Joi.string().valid('agent', 'admin').required(),
 });
 
-// Joi schema for creating a new appointment
-const createAppointmentSchema = Joi.object({
-  listing_id: Joi.number().integer().required(),
-  scheduled_at: Joi.date().iso().required(),
-});
-
 
 // Joi schema for creating a new ledger entry
 const createLedgerEntrySchema = Joi.object({
+  tenant_id: Joi.number().integer().required(),
   description: Joi.string().min(5).required(),
   amount: Joi.number().precision(2).positive().required(),
   type: Joi.string().valid('income', 'expense').required(),
@@ -146,7 +165,7 @@ const createFlatSchema = Joi.object({
   description: Joi.string().optional().allow(''),
   unit_number: Joi.string().trim().uppercase().min(1).required(),
   type: Joi.string().valid('1RK', '1BHK', '2BHK', '3BHK', '3BHK+').required(),
-  area_sqft: Joi.number().precision(2).optional().allow(null), // Changed to allow decimal
+  area_sqft: Joi.number().precision(2).optional().allow(null), 
   flatStatus: Joi.string().valid('available', 'occupied', 'maintenance').optional().default('available'),
   unique_amenities: Joi.array().items(Joi.string()).optional(),
 });
@@ -172,10 +191,13 @@ module.exports = {
   updateBookingSchema,
   employeeCreationSchema,
   updateEmployeeRoleSchema,
-  createAppointmentSchema,
+  createAppointmentSchema,      
+  updateAppointmentSchema,
+  assignEmployeeSchema,
+  updateAppointmentStatusSchema,
   createTenantSchema,
   updateTenantSchema,
-  updateAppointmentStatusSchema,
+  idProofUploadSchema,
   createLedgerEntrySchema,
   updateLedgerEntrySchema,
   createFlatSchema,

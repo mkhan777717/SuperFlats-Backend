@@ -5,12 +5,16 @@ const Appointment = db.Appointment;
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
-const { updateAppointmentStatusSchema } = require('../utils/validator');
+const { createAppointmentSchema, updateAppointmentSchema, assignEmployeeSchema, updateAppointmentStatusSchema } = require('../utils/validator');
 
 // Create a new appointment with 'non_assigned' status
 exports.createAppointment = async (req, res) => {
   try {
-    const { listing_id, scheduled_at } = req.body;
+    const { error, value } = createAppointmentSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+    const { listing_id, scheduled_at } = value;
     const userId = req.user.id;
 
     // Check if the listing exists and is active
@@ -61,7 +65,12 @@ exports.createAppointment = async (req, res) => {
 exports.assignEmployee = async (req, res) => {
   try {
     const { id } = req.params;
-    const { employee_id } = req.body;
+
+    const { error, value } = assignEmployeeSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+    const { employee_id } = value;
     const { role: userRole, company_id: userCompanyId } = req.user;
 
     // Only admins and agents can assign employees
@@ -80,20 +89,9 @@ exports.assignEmployee = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to manage this appointment.' });
     }
 
-    // No need for status check if you're not changing the status
-    // If you want to prevent changes on 'cancelled' or 'completed'
-    // you would add a check here, for example:
-    // if (appointment.status === 'cancelled' || appointment.status === 'completed') {
-    //   return res.status(400).json({ message: 'Cannot assign employee to a cancelled or completed appointment.' });
-    // }
 
-
-    // 1. Update ONLY the employee_id
     appointment.employee_id = employee_id;
-    // 2. Remove the line that updates the status
     await appointment.save();
-
-    // 3. IMPORTANT: Fetch the updated appointment with its associations
     const updatedAppointment = await Appointment.findByPk(id, {
       include: [
         {
@@ -110,7 +108,6 @@ exports.assignEmployee = async (req, res) => {
     });
 
     logger.info(`Appointment ${id} assigned to employee ${employee_id} by user from company ${userCompanyId}.`);
-    // 4. Send the complete, updated appointment object
     res.status(200).json({ message: 'Appointment assigned successfully.', appointment: updatedAppointment });
 
   } catch (error) {
@@ -134,22 +131,17 @@ exports.updateAppointmentStatus = async (req, res) => {
     if (!appointment) {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
-
-    // SECURITY CHECK: Ensure the appointment belongs to the user's company
     if (appointment.company_id !== userCompanyId) {
       logger.warn(`User from company ${userCompanyId} tried to update appointment ${id} from a different company.`);
       return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
     }
 
-    // Authorization logic for who can update the status
     if (userRole === 'client') {
-      // Clients can only cancel their own appointments
       if (appointment.user_id !== userId || status !== 'cancelled') {
         logger.warn(`Unauthorized client ${userId} attempted to update appointment ${id} to status: ${status}.`);
         return res.status(403).json({ message: 'You are only authorized to cancel your own appointments.' });
       }
     } else if (userRole !== 'admin' && userRole !== 'agent') {
-      // Only admins and agents can update all statuses
       return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
     }
 
@@ -165,27 +157,19 @@ exports.updateAppointmentStatus = async (req, res) => {
   }
 };
 
-// Get all appointments for a user or company with optional filters
 exports.getAppointments = async (req, res) => {
   try {
     const { id: userId, role: userRole, company_id: userCompanyId } = req.user;
-    // Extract the optional employeeId from the query parameters
     const { employeeId } = req.query;
 
     let whereClause = {};
     if (userRole === 'client') {
-      // Clients can only see their own appointments
       whereClause = { user_id: userId };
     } else if (userRole === 'agent') {
-      // Agents can see all appointments they are assigned to
       whereClause = { employee_id: userId };
     } else {
-      // Admins and others can see all appointments for their company
       whereClause = { company_id: userCompanyId };
     }
-
-    // New logic: If an employeeId is provided, filter the appointments
-    // This is only allowed for admins/agents who can manage others' schedules
     if (employeeId && (userRole === 'admin' || userRole === 'agent')) {
       whereClause.employee_id = employeeId;
     }
@@ -224,7 +208,6 @@ exports.getAppointmentById = async (req, res) => {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
 
-    // Authorization: Check if the user is a client and owns the appointment, or if they are from the same company
     if (userRole === 'client') {
       if (appointment.user_id !== userId) {
         logger.warn(`Unauthorized client ${userId} tried to view appointment ID ${id}.`);
@@ -235,7 +218,6 @@ exports.getAppointmentById = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to view this appointment.' });
     }
 
-    // Now that authorization is confirmed, fetch the full details
     const fullAppointment = await Appointment.findByPk(id, {
       include: [
         { model: Listing, as: 'listing', include: [{ model: Property, as: 'property' }] },
@@ -256,8 +238,6 @@ exports.deleteAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const { role: userRole, company_id: userCompanyId } = req.user;
-
-    // Authorization: Only admins and agents are allowed to delete appointments
     if (userRole !== 'admin' && userRole !== 'agent') {
       return res.status(403).json({ message: 'You are not authorized to delete appointments.' });
     }
@@ -266,8 +246,6 @@ exports.deleteAppointment = async (req, res) => {
     if (!appointment) {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
-
-    // SECURITY CHECK: Ensure the appointment belongs to the user's company
     if (appointment.company_id !== userCompanyId) {
       logger.warn(`User from company ${userCompanyId} tried to delete appointment ${id} from a different company.`);
       return res.status(403).json({ message: 'You are not authorized to delete this appointment.' });
@@ -286,15 +264,16 @@ exports.deleteAppointment = async (req, res) => {
 };
 
 
-// The corrected updateAppointment function
 exports.updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { listing_id, scheduled_at } = req.body;
+
+    const { error, value } = updateAppointmentSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+    const { listing_id, scheduled_at } = value;
     const { role: userRole, company_id: userCompanyId } = req.user;
-
-
-    // Authorization: Only admins and agents can update appointments
     if (userRole !== 'admin' && userRole !== 'agent') {
       return res.status(403).json({ message: 'You are not authorized to update appointments.' });
     }
@@ -303,8 +282,6 @@ exports.updateAppointment = async (req, res) => {
     if (!appointment) {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
-
-    // SECURITY CHECK: Ensure the appointment belongs to the user's company
     if (appointment.company_id !== userCompanyId) {
       logger.warn(`User from company ${userCompanyId} tried to update appointment ${id} from a different company.`);
       return res.status(403).json({ message: 'You are not authorized to update this appointment.' });
@@ -327,7 +304,7 @@ exports.updateAppointment = async (req, res) => {
         where: {
           listing_id: targetListingId,
           scheduled_at: targetScheduledAt,
-          id: { [Op.not]: id }, // Exclude the current appointment from the check
+          id: { [Op.not]: id }, 
           [Op.or]: [
             { status: 'pending' },
             { status: 'confirmed' },
@@ -339,14 +316,11 @@ exports.updateAppointment = async (req, res) => {
         return res.status(409).json({ message: 'This time slot is already booked for this listing. Please choose a different time.' });
       }
     }
-
-    // Update fields if they are provided in the request body
     if (listing_id) {
       appointment.listing_id = listing_id;
     }
 
     if (scheduled_at) {
-      // Corrected logic: create a new Date object from the string and then format it
       const date = new Date(scheduled_at);
       appointment.scheduled_at = date.toISOString().replace(/\.\d{3}Z$/, 'Z');
     }

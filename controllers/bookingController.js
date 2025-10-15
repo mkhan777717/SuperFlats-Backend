@@ -23,7 +23,6 @@ exports.createBooking = async (req, res) => {
     const { flat_id, tenant_id, start_date, end_date, monthly_rent, security_amount, security_type } = req.body;
     const company_id = req.user.employee.company_id;
 
-    // 1. Verify tenant exists and is available
     const tenant = await Tenant.findByPk(tenant_id, { transaction });
     if (!tenant) {
       await transaction.rollback();
@@ -34,7 +33,6 @@ exports.createBooking = async (req, res) => {
       return res.status(409).json({ message: 'The selected tenant already has an active booking and is not available.' });
     }
 
-    // 2. Find the flat and verify ownership and availability
     const flat = await Flat.findByPk(flat_id, { transaction });
     if (!flat) {
       await transaction.rollback();
@@ -49,7 +47,6 @@ exports.createBooking = async (req, res) => {
       return res.status(409).json({ message: 'This flat is not available for booking.' });
     }
 
-    // 3. Create the new booking
     const newBooking = await Booking.create({
       flat_id,
       tenant_id,
@@ -58,29 +55,23 @@ exports.createBooking = async (req, res) => {
       monthly_rent,
       security_amount,
       security_type,
-      status: 'active', // Set booking status
+      status: 'active', 
     }, { transaction });
 
-    // 4. Update tenant's ledger with the security deposit
     const [ledger] = await Ledger.findOrCreate({
       where: { tenant_id },
       defaults: { tenant_id, balance: 0.00, deposit: 0.00 },
       transaction,
     });
     await ledger.increment('deposit', { by: parseFloat(security_amount), transaction });
-
-    // 5. Update the flat's status to 'occupied'
     await flat.update({ flatStatus: 'occupied' }, { transaction });
-
-    // 6. Update the tenant's status to 'occupied'
     await tenant.update({ status: 'occupied' }, { transaction });
-
     await transaction.commit();
 
     const completeBooking = await Booking.findByPk(newBooking.id, {
       include: [
         { model: Flat, as: 'flat', include: [{ model: Property, as: 'property' }] },
-        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] }, // 👈 REMOVED 'email'
+        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] },
       ],
     });
 
@@ -105,7 +96,7 @@ exports.getBookingById = async (req, res) => {
     const booking = await Booking.findByPk(id, {
       include: [
         { model: Flat, as: 'flat', include: [{ model: Property, as: 'property' }] },
-        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] }, // 👈 REMOVED 'email'
+        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] },
       ],
     });
 
@@ -113,7 +104,6 @@ exports.getBookingById = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found.' });
     }
 
-    // Authorization check
     if (booking.flat.company_id !== company_id) {
       return res.status(403).json({ message: 'You are not authorized to view this booking.' });
     }
@@ -139,9 +129,8 @@ exports.getAllBookings = async (req, res) => {
       sortOrder = 'DESC'
     } = req.query;
 
-    // --- Build Where Clause ---
     const whereClause = {};
-    const flatWhereClause = { company_id: company_id }; // Core filter
+    const flatWhereClause = { company_id: company_id }; 
 
     if (search) {
       const keywordQuery = { [Op.like]: `%${search}%` };
@@ -154,7 +143,6 @@ exports.getAllBookings = async (req, res) => {
       ];
     }
 
-    // --- Build Order Clause ---
     const validSortColumns = ['start_date', 'end_date', 'monthly_rent', 'created_at'];
     const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'start_date';
     const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -163,7 +151,6 @@ exports.getAllBookings = async (req, res) => {
       ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
       : [[finalSortBy, finalSortOrder]];
 
-    // --- Pagination ---
     const finalLimit = parseInt(limit, 10);
     const finalOffset = parseInt(offset, 10);
 
@@ -183,7 +170,7 @@ exports.getAllBookings = async (req, res) => {
       limit: finalLimit,
       offset: finalOffset,
       distinct: true,
-      subQuery: false, // Important for searching on nested associations
+      subQuery: false, 
     });
 
     res.status(200).json({
@@ -232,9 +219,7 @@ exports.updateBooking = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this booking.' });
     }
 
-    // Note: Ledger adjustments on update can be complex.
-    // This example just updates the booking. A full implementation might need to
-    // calculate differences in rent/deposit and create ledger entries.
+
     await booking.update(req.body, { transaction });
 
     await transaction.commit();
@@ -271,19 +256,16 @@ exports.deleteBooking = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to delete this booking.' });
     }
 
-    // Adjust ledger: remove the security deposit associated with this booking
     const ledger = await Ledger.findOne({ where: { tenant_id: booking.tenant_id }, transaction });
     if (ledger) {
       await ledger.decrement('deposit', { by: parseFloat(booking.security_amount), transaction });
     }
 
-    // Set the flat's status back to 'available'
     const flat = await Flat.findByPk(booking.flat_id, { transaction });
     if (flat) {
       await flat.update({ flatStatus: 'available' }, { transaction });
     }
 
-    // Set the tenant's status back to 'available'
     const tenant = await Tenant.findByPk(booking.tenant_id, { transaction });
     if (tenant) {
       await tenant.update({ status: 'available' }, { transaction });

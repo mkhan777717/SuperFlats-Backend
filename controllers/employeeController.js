@@ -1,7 +1,7 @@
 const db = require('../models');
 const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
-const { employeeCreationSchema } = require('../utils/validator');
+const { employeeCreationSchema, updateEmployeeRoleSchema } = require('../utils/validator');
 const { Op } = require('sequelize');
 const Employee = db.Employee;
 const User = db.User;
@@ -56,7 +56,6 @@ exports.createEmployee = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 1. Create the new user with the given role
     const newUser = await User.create({
       name,
       email,
@@ -64,14 +63,10 @@ exports.createEmployee = async (req, res) => {
       role: role,
       password: hashedPassword,
     }, { transaction });
-
-    // 2. Create the new employee record and associate it with the company
     const newEmployee = await Employee.create({
       user_id: newUser.id,
-      company_id: companyId, // Link the employee to the company
+      company_id: companyId, 
     }, { transaction });
-
-    // Commit the transaction
     await transaction.commit();
 
     logger.info(`New employee created successfully for user ID: ${newUser.id} with role: ${role}`);
@@ -163,13 +158,12 @@ exports.updateEmployeeRole = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
-    const { role } = req.body;
-
-    const allowedRoles = ['agent', 'admin'];
-    if (!allowedRoles.includes(role)) {
+    const { error, value } = updateEmployeeRoleSchema.validate(req.body);
+    if (error) {
       await transaction.rollback();
-      return res.status(400).json({ message: 'Invalid employee role.' });
+      return res.status(400).json({ message: error.details[0].message });
     }
+    const { role } = value;
 
     const employee = await Employee.findByPk(id, { transaction });
     if (!employee) {
@@ -195,7 +189,7 @@ exports.updateEmployeeRole = async (req, res) => {
         }],
         where: {
           company_id: employee.company_id,
-          id: { [Op.ne]: id } // Exclude the current employee from the count
+          id: { [Op.ne]: id }
         },
         transaction
       });
@@ -248,7 +242,6 @@ exports.deleteEmployee = async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    // ADDED: Delete the profile image from Firebase if it exists
     if (user.profile_image) {
       await deleteFile(user.profile_image, 'profile image');
     }
