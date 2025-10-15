@@ -1,17 +1,17 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  const Lease = sequelize.define('Lease', {
+  const Booking = sequelize.define('Booking', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
     },
-    property_id: {
+    flat_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'properties',
+        model: 'flats',
         key: 'id',
       },
     },
@@ -23,14 +23,7 @@ module.exports = (sequelize) => {
         key: 'id',
       },
     },
-    listing_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'listings',
-        key: 'id',
-      },
-    },
+
     start_date: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -43,47 +36,35 @@ module.exports = (sequelize) => {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
     },
-    deposit: {
+    security_amount: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
       defaultValue: 0.00,
-      field: 'security_deposit', // Optional: use a more explicit column name if desired, or stick to 'deposit'
-    },
-    status: {
-      type: DataTypes.STRING,
+    }, security_type: {
+      type: DataTypes.ENUM('lease', 'deposit'),
       allowNull: false,
-      validate: {
-        isIn: [['active', 'in_active']],
-      },
-      defaultValue: 'active',
+      defaultValue: 'deposit',
     },
   }, {
-    tableName: 'leases',
+    tableName: 'bookings',
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at', // Corrected to use a standard field name
   });
 
-  Lease.associate = (models) => {
-    // A Lease belongs to one Property
-    Lease.belongsTo(models.Property, {
-      foreignKey: 'property_id',
-      as: 'property'
+  Booking.associate = (models) => {
+    // A Booking belongs to one Flat
+    Booking.belongsTo(models.Flat, {
+      foreignKey: 'flat_id',
+      as: 'flat'
     });
 
-    // A Lease belongs to one Tenant
-    Lease.belongsTo(models.Tenant, {
+    // A Booking belongs to one Tenant
+    Booking.belongsTo(models.Tenant, {
       foreignKey: 'tenant_id',
       as: 'tenant'
     });
-
-    Lease.belongsTo(models.Listing, {
-      foreignKey: 'listing_id',
-      as: 'listing'
-    });
-
-
   };
 
-  return Lease;
+  return Booking;
 };

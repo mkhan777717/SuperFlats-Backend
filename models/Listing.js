@@ -86,13 +86,6 @@ module.exports = (sequelize) => {
       as: 'appointments',
       onDelete: 'CASCADE',
     });
-
-    // When a Listing is deleted, its Lease is deleted.
-    Listing.hasOne(models.Lease, {
-      foreignKey: 'listing_id',
-      as: 'lease',
-      onDelete: 'CASCADE',
-    });
   };
 
   return Listing;

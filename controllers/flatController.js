@@ -586,3 +586,31 @@ exports.uploadFlatPhoto = async (req, res) => {
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
+
+/**
+ * Retrieves all available (not occupied) flats that can be booked.
+ */
+exports.getAllAvailableFlats = async (req, res) => {
+    try {
+        // ADDED: Standard authentication and authorization check
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+        }
+
+        const company_id = req.user.employee.company_id;
+        const availableFlats = await Flat.findAll({
+            where: {
+                company_id: company_id,
+                flatStatus: 'available'
+            },
+            include: [{ model: Property, as: 'property', attributes: ['id', 'name', 'address'] }],
+            attributes: ['id', 'title', 'unit_number', 'type'],
+            order: [['created_at', 'DESC']],
+        });
+
+        res.status(200).json(availableFlats);
+    } catch (error) {
+        logger.error('Error fetching available flats:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};

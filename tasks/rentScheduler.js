@@ -2,13 +2,13 @@
 const cron = require('node-cron');
 const db = require('../models');
 const { Op } = require('sequelize');
-const Lease = db.Lease;
+const Booking = db.Booking;
 const Ledger = db.Ledger;
 const LedgerEntry = db.LedgerEntry;
 const logger = require('../utils/logger');
 
 /**
- * Creates a monthly rent charge entry for all active leases.
+ * Creates a monthly rent charge entry for all active bookings.
  */
 const createMonthlyRentCharge = async () => {
     const transaction = await db.sequelize.transaction();
@@ -21,8 +21,8 @@ const createMonthlyRentCharge = async () => {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of the current month
 
     try {
-        // 1. Find all active leases
-        const activeLeases = await Lease.findAll({
+        // 1. Find all active bookings
+        const activeBookings = await Booking.findAll({
             where: {
                 status: 'active',
                 start_date: { [Op.lte]: now },
@@ -37,9 +37,9 @@ const createMonthlyRentCharge = async () => {
 
         let newChargesCount = 0;
 
-        for (const lease of activeLeases) {
-            const tenantId = lease.tenant_id;
-            const rentAmount = parseFloat(lease.monthly_rent);
+        for (const booking of activeBookings) {
+            const tenantId = booking.tenant_id;
+            const rentAmount = parseFloat(booking.monthly_rent);
 
             const existingCharge = await LedgerEntry.findOne({
                 where: {

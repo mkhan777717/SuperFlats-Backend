@@ -74,6 +74,11 @@ module.exports = (sequelize) => {
             as: 'photos',
             onDelete: 'CASCADE',
         });
+        Flat.hasOne(models.Booking, {
+            foreignKey: 'flat_id',
+            as: 'booking',
+            onDelete: 'CASCADE',
+        });
     };
 
     return Flat;

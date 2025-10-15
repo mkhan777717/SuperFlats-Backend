@@ -5,8 +5,8 @@ const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  phone_number: Joi.string().pattern(/^[0-9]+$/).required().messages({
-    'string.pattern.base': 'Phone number must contain only numbers.'
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({ // 👈 UPDATED for consistency
+    'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
 });
 const updateAppointmentStatusSchema = Joi.object({
@@ -42,7 +42,7 @@ const createListingSchema = Joi.object({
   title: Joi.string().min(5).required(),
   description: Joi.string().min(10).optional().allow(''),
   monthly_rent: Joi.number().precision(2).positive().required(),
-  security_amount: Joi.number().precision(2).positive().required(),
+  security_amount: Joi.number().precision(2).min(0).required(), // 👈 CHANGED to min(0)
   security_type: Joi.string().valid('lease', 'deposit').required(),
   status: Joi.string().valid('active', 'closed', 'pending').optional().default('pending'),
 });
@@ -52,39 +52,60 @@ const updateListingSchema = Joi.object({
   title: Joi.string().min(5).optional(),
   description: Joi.string().min(10).optional().allow(''),
   monthly_rent: Joi.number().precision(2).positive().optional(),
-  security_amount: Joi.number().precision(2).positive().optional(),
+  security_amount: Joi.number().precision(2).min(0).optional(), // 👈 CHANGED to min(0)
   security_type: Joi.string().valid('lease', 'deposit').optional(),
   status: Joi.string().valid('active', 'closed', 'pending').optional(),
 }).min(1);
 
 
+// NEW: Joi schema for creating a new booking
+const createBookingSchema = Joi.object({
+  flat_id: Joi.number().integer().positive().required(),
+  tenant_id: Joi.number().integer().positive().required(),
+  start_date: Joi.date().iso().required(),
+  end_date: Joi.date().iso().greater(Joi.ref('start_date')).required(),
+  monthly_rent: Joi.number().precision(2).positive().required(),
+  security_amount: Joi.number().precision(2).min(0).required(),
+  security_type: Joi.string().valid('lease', 'deposit').required(),
+});
+
+// NEW: Joi schema for updating a booking
+const updateBookingSchema = Joi.object({
+  start_date: Joi.date().iso().optional(),
+  end_date: Joi.date().iso().greater(Joi.ref('start_date')).optional(),
+  monthly_rent: Joi.number().precision(2).positive().optional(),
+  security_amount: Joi.number().precision(2).min(0).optional(),
+  security_type: Joi.string().valid('lease', 'deposit').optional(),
+  status: Joi.string().valid('active', 'ended', 'cancelled').optional(),
+}).min(1);
+
+
 // Joi schema for creating a new tenant
 const createTenantSchema = Joi.object({
-  name: Joi.string().required(),
-  email: Joi.string().email().optional(),
-  phone_number: Joi.string().pattern(/^[0-9]+$/).optional().messages({
-    'string.pattern.base': 'Phone number must contain only numbers.'
+  name: Joi.string().min(2).max(100).required(),
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
+    'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  joined_at: Joi.date().iso().optional(),
+  status: Joi.string().valid('available', 'occupied').optional(), // 👈 ADDED
 });
 
 // Joi schema for updating a tenant
 const updateTenantSchema = Joi.object({
-  name: Joi.string().optional(),
-  phone_number: Joi.string().pattern(/^[0-9]+$/).optional().messages({
-    'string.pattern.base': 'Phone number must contain only numbers.'
+  name: Joi.string().min(2).max(100).optional(),
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).optional().messages({
+    'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  email: Joi.string().email().optional(),
-  joined_at: Joi.date().iso().optional(),
-});
+  status: Joi.string().valid('available', 'occupied').optional(), // 👈 ADDED
+}).min(1); // Ensure at least one field is being updated
+
 
 // Joi schema for employee creation data
 const employeeCreationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  phone_number: Joi.string().pattern(/^[0-9]+$/).required().messages({
-    'string.pattern.base': 'Phone number must contain only numbers.'
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({ // 👈 UPDATED for consistency
+    'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
   role: Joi.string().valid('agent', 'admin').required(),
 });
@@ -100,27 +121,6 @@ const createAppointmentSchema = Joi.object({
   scheduled_at: Joi.date().iso().required(),
 });
 
-
-
-// Joi schema for validating a new lease creation request
-const createLeaseSchema = Joi.object({
-  listing_id: Joi.number().integer().positive().required(),
-  tenant_id: Joi.number().integer().positive().required(),
-  start_date: Joi.date().iso().required(),
-  end_date: Joi.date().iso().greater(Joi.ref('start_date')).required(),
-  monthly_rent: Joi.number().precision(2).positive().required(),
-  security_deposit: Joi.number().precision(2).positive().required(),
-  status: Joi.string().valid('active', 'in_active').required(),
-});
-
-// Joi schema for validating a lease update request
-const updateLeaseSchema = Joi.object({
-  start_date: Joi.date().iso().optional(),
-  end_date: Joi.date().iso().greater(Joi.ref('start_date')).optional(),
-  monthly_rent: Joi.number().precision(2).positive().optional(),
-  security_deposit: Joi.number().precision(2).positive().optional(),
-  status: Joi.string().valid('active', 'in_active').optional(),
-});
 
 // Joi schema for creating a new ledger entry
 const createLedgerEntrySchema = Joi.object({
@@ -167,14 +167,14 @@ module.exports = {
   userRegistrationSchema,
   createPropertySchema,
   createListingSchema,
-  updateListingSchema, 
+  updateListingSchema,
+  createBookingSchema,
+  updateBookingSchema,
   employeeCreationSchema,
   updateEmployeeRoleSchema,
   createAppointmentSchema,
   createTenantSchema,
   updateTenantSchema,
-  createLeaseSchema,
-  updateLeaseSchema,
   updateAppointmentStatusSchema,
   createLedgerEntrySchema,
   updateLedgerEntrySchema,
