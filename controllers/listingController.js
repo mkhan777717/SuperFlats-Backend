@@ -6,7 +6,7 @@ const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
 const Company = db.Company;
-const Flat = db.Flat; 
+const Flat = db.Flat;
 const Photo = db.Photo;
 
 
@@ -183,25 +183,51 @@ exports.getMyListings = async (req, res) => {
         }
 
         const company_id = req.user.employee.company_id;
-        const { limit = 10, offset = 0 } = req.query; // Get pagination params
+        const {
+            keywords,
+            sort_by = 'created_at',
+            sort_order = 'DESC',
+            limit = 10,
+            offset = 0
+        } = req.query;
 
-        const { count, rows } = await Listing.findAndCountAll({ // Use findAndCountAll
-            where: { company_id },
+        // --- Build Where Clause ---
+        const whereClause = { company_id };
+
+        if (keywords) {
+            const keywordQuery = { [Op.like]: `%${keywords}%` };
+            whereClause[Op.or] = [
+                { title: keywordQuery },
+                { '$flat.unit_number$': keywordQuery },
+                { '$flat.property.name$': keywordQuery },
+            ];
+        }
+
+        // --- Build Order Clause ---
+        const validSortColumns = ['created_at', 'monthly_rent'];
+        const finalSortBy = validSortColumns.includes(sort_by) ? sort_by : 'created_at';
+        const finalSortOrder = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const order = [[finalSortBy, finalSortOrder]];
+
+        const { count, rows } = await Listing.findAndCountAll({
+            where: whereClause,
             include: [
                 {
                     model: Flat,
                     as: 'flat',
+                    required: true, // Ensures listings without flats are not returned
                     include: [
-                        { model: Property, as: 'property', attributes: ['id', 'name'] },
+                        { model: Property, as: 'property', attributes: ['id', 'name'], required: true },
                         { model: Photo, as: 'photos', where: { is_primary: true }, required: false }
                     ]
                 },
                 { model: User, as: 'lister', attributes: ['id', 'name'] },
             ],
-            order: [['created_at', 'DESC']],
+            order,
             limit: parseInt(limit, 10),
             offset: parseInt(offset, 10),
-            distinct: true, // Important for correct counts with joins
+            distinct: true,
+            subQuery: false, // Required for searching on nested model fields
         });
 
         res.status(200).json({
