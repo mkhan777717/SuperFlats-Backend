@@ -71,6 +71,14 @@ exports.createFlat = async (req, res) => {
             await transaction.rollback();
             return res.status(400).json({ message: 'Invalid flat type provided.' });
         }
+
+        // BUG FIX: Check if there are available units of this type BEFORE creating the flat.
+        if (property[countColumn] <= 0) {
+            await transaction.rollback();
+            logger.warn(`Failed to create flat: No available units of type '${type}' for property ID ${propertyId}.`);
+            return res.status(409).json({ message: `No available units of type '${type}' left for this property.` });
+        }
+
         propertyIdInt = parseInt(propertyId, 10);
         // 2. Create the Flat (handle unique constraint)
         let newFlat;
@@ -405,7 +413,7 @@ exports.updateFlat = async (req, res) => {
         }
 
         // If status is set to 'available', no lease_end_date exists in new model — nothing to clear
-        try { 
+        try {
             await flat.update(updateData, { transaction });
         } catch (err) {
             if (err instanceof UniqueConstraintError) {
