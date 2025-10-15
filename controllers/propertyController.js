@@ -90,7 +90,11 @@ exports.getPropertyById = async (req, res) => {
     const property = await Property.findByPk(id, {
       include: [
         { model: Company, as: 'company', attributes: ['id', 'name'] },
-        { model: Photo, as: 'photos' },
+        {
+          model: Photo,
+          as: 'photos',
+          order: [['is_primary', 'DESC']], 
+        },
       ],
     });
 
@@ -99,7 +103,6 @@ exports.getPropertyById = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Response body standardized
     res.status(200).json({ property });
 
   } catch (error) {
@@ -179,7 +182,11 @@ exports.getProperties = async (req, res) => {
       where: whereConditions,
       include: [
         { model: Company, as: 'company' },
-        { model: Photo, as: 'photos' },
+        {
+          model: Photo,
+          as: 'photos',
+          order: [['is_primary', 'DESC']],
+        },
       ],
       limit: finalLimit,
       offset: finalOffset,
@@ -225,7 +232,6 @@ exports.updateProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Authentication and Authorization Check (Corrected to use full path)
     if (!req.user || !req.user.employee || !req.user.employee.company_id) {
       await transaction.rollback();
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
@@ -239,17 +245,19 @@ exports.updateProperty = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this property.' });
     }
 
-    // Update the property data
     await property.update(propertyData, { transaction });
 
 
     await transaction.commit();
 
-    // Fetch the updated record with associations for the response
     const updatedPropertyWithAssociations = await Property.findByPk(id, {
       include: [
         { model: Company, as: 'company' },
-        { model: Photo, as: 'photos' }
+        {
+          model: Photo,
+          as: 'photos',
+          order: [['is_primary', 'DESC']],
+        }
       ]
     });
 
@@ -273,34 +281,24 @@ exports.updateProperty = async (req, res) => {
 exports.deletePhoto = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
-    const { photoId } = req.params;
+    const { propertyId, photoId } = req.params; // Use both params for clarity
 
-    if (!photoId) {
-      await transaction.rollback();
-      logger.warn('Photo ID is required for deletion.');
-      return res.status(400).json({ message: 'Photo ID is required.' });
-    }
-
-    const photo = await Photo.findByPk(photoId, {
-      include: [{ model: Property, as: 'property' }],
-      transaction
-    });
+    const photo = await Photo.findByPk(photoId, { transaction });
 
     if (!photo) {
       await transaction.rollback();
-      logger.warn(`Photo with ID ${photoId} not found.`);
       return res.status(404).json({ message: 'Photo not found.' });
     }
 
-    if (!req.user || !req.user.employee.company_id) {
+    if (photo.imageable_type !== 'Property' || photo.imageable_id !== parseInt(propertyId, 10)) {
       await transaction.rollback();
-      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+      return res.status(403).json({ message: 'Photo does not belong to the specified property.' });
     }
 
-    if (photo.property.company_id !== req.user.employee.company_id) {
+    const property = await Property.findByPk(propertyId, { attributes: ['company_id'], transaction });
+    if (!req.user || !req.user.employee || !property || property.company_id !== req.user.employee.company_id) {
       await transaction.rollback();
-      logger.warn(`Unauthorized attempt to delete photo ID ${photoId} from property ID ${photo.property.id} by user from company ID ${req.user.employee.company_id}.`);
-      return res.status(403).json({ message: 'You are not authorized to delete this photo.' });
+      return res.status(403).json({ message: 'You are not authorized to perform this action.' });
     }
 
     const wasPrimary = photo.is_primary;
@@ -309,29 +307,31 @@ exports.deletePhoto = async (req, res) => {
     await photo.destroy({ transaction });
 
     if (wasPrimary) {
-      const remainingPhotos = await Photo.findAll({
-        where: { property_id: photo.property_id },
+      const newPrimaryPhoto = await Photo.findOne({
+        where: {
+          imageable_id: propertyId,
+          imageable_type: 'Property'
+        },
         order: [['id', 'ASC']],
         limit: 1,
         transaction,
       });
 
-      if (remainingPhotos.length > 0) {
-        const newPrimaryPhoto = remainingPhotos[0];
+      if (newPrimaryPhoto) {
         await newPrimaryPhoto.update({ is_primary: true }, { transaction });
-        logger.info(`Assigned new primary photo with ID ${newPrimaryPhoto.id} for property ID ${photo.property.id}.`);
+        logger.info(`Assigned new primary photo with ID ${newPrimaryPhoto.id} for property ID ${propertyId}.`);
       }
     }
 
     await transaction.commit();
-    logger.info(`Photo with ID ${photoId} deleted successfully by user from company ID ${req.user.employee.company_id}.`);
+    logger.info(`Photo with ID ${photoId} deleted successfully.`);
     res.status(200).json({ message: 'Photo deleted successfully.' });
 
   } catch (error) {
     if (transaction.finished !== 'commit') {
       await transaction.rollback();
     }
-    logger.error(`Error deleting photo with ID ${req.params.id}:`, error);
+    logger.error(`Error deleting photo with ID ${req.params.photoId}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
@@ -355,7 +355,6 @@ exports.deleteProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    // Authentication and Authorization Check (Corrected to use full path)
     if (!req.user || !req.user.employee || !req.user.employee.company_id) {
       await transaction.rollback();
       return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
@@ -369,14 +368,16 @@ exports.deleteProperty = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to delete this property.' });
     }
 
-    // 1. Find all photos to delete files from storage
-    const photosToDelete = await Photo.findAll({ where: { property_id: id }, transaction });
-    await Promise.all(photosToDelete.map(photo => deleteFile(photo.photo_url, 'photo')));
+    const photosToDelete = await Photo.findAll({ where: { imageable_id: id, imageable_type: 'Property' }, transaction });
+    for (const photo of photosToDelete) {
+      try {
+        await deleteFile(photo.photo_url, 'photo');
+      } catch (err) {
+        logger.warn(`Failed to delete photo from storage for photo id ${photo.id}: ${err.message || err}`);
+      }
+    }
 
-    // 2. Delete associated records (Photos)
-    await Photo.destroy({ where: { property_id: id }, transaction });
-
-    // 3. Delete the property itself
+    await Photo.destroy({ where: { imageable_id: id, imageable_type: 'Property' }, transaction });
     await property.destroy({ transaction });
 
     await transaction.commit();
@@ -402,57 +403,49 @@ exports.uploadPhoto = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const propertyId = req.params.id;
+    const { name } = req.body; 
 
-    if (!propertyId) {
+    if (!propertyId || !req.file) {
       await transaction.rollback();
-      logger.warn('Property ID is required for photo upload.');
-      return res.status(400).json({ message: 'Property ID is required.' });
-    }
-
-    if (!req.file) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'No file uploaded.' });
-    }
-
-    const photoCount = await Photo.count({
-      where: { property_id: propertyId },
-      transaction,
-    });
-
-    if (photoCount >= 10) {
-      await transaction.rollback();
-      logger.warn(`Attempt to upload more than 10 photos for property ID ${propertyId}.`);
-      return res.status(400).json({ message: 'Maximum of 10 photos allowed per property.' });
+      return res.status(400).json({ message: 'Property ID and file upload are required.' });
     }
 
     const property = await Property.findByPk(propertyId, { transaction });
     if (!property) {
       await transaction.rollback();
-      logger.warn(`Property with ID ${propertyId} not found.`);
       return res.status(404).json({ message: 'Property not found.' });
     }
 
-    if (!req.user || !req.user.employee.company_id) {
+    if (!req.user || !req.user.employee || property.company_id !== req.user.employee.company_id) {
       await transaction.rollback();
-      return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+      return res.status(403).json({ message: 'You are not authorized to add photos to this property.' });
     }
 
-    if (property.company_id !== req.user.employee.company_id) {
+    const photoCount = await Photo.count({
+      where: {
+        imageable_id: propertyId,
+        imageable_type: 'Property'
+      },
+      transaction,
+    });
+
+    if (photoCount >= 10) {
       await transaction.rollback();
-      logger.warn(`Unauthorized attempt to add a photo to property ID ${propertyId} by user from company ID ${req.user.employee.company_id}.`);
-      return res.status(403).json({ message: 'You are not authorized to add photos to this property.' });
+      return res.status(400).json({ message: 'Maximum of 10 photos allowed per property.' });
     }
 
     const photoUrl = await uploadFile(req.file);
 
     const newPhoto = await Photo.create({
-      property_id: propertyId,
       photo_url: photoUrl,
-      is_primary: false,
+      name: name || null, 
+      imageable_id: propertyId,
+      imageable_type: 'Property',
+      is_primary: photoCount === 0,
     }, { transaction });
 
     await transaction.commit();
-    logger.info(`Photo uploaded and linked to property ID ${propertyId} by user from company ID ${req.user.employee.company_id}.`);
+    logger.info(`Photo uploaded and linked to property ID ${propertyId}.`);
     res.status(201).json({ message: 'Photo uploaded successfully.', photo: newPhoto });
 
   } catch (error) {

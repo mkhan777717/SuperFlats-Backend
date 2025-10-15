@@ -78,12 +78,10 @@ module.exports = (sequelize) => {
     amenities: {
       type: DataTypes.JSON,
       get() {
-        // Parse the JSON string from the database back into a JavaScript array
         const rawValue = this.getDataValue('amenities');
         return rawValue ? JSON.parse(rawValue) : [];
       },
       set(val) {
-        // Stringify the array before saving it to the database
         this.setDataValue('amenities', JSON.stringify(val));
       }
     },
@@ -101,16 +99,16 @@ module.exports = (sequelize) => {
   });
 
   Property.associate = (models) => {
-    // This association is now correct, linking Property to Company via company_id
     Property.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
-
-    // When a Property is deleted, its Photos are deleted.
     Property.hasMany(models.Photo, {
-      foreignKey: 'property_id',
+      foreignKey: 'imageable_id',
+      constraints: false,
+      scope: {
+        imageable_type: 'Property'
+      },
       as: 'photos',
       onDelete: 'CASCADE',
     });
-    // When a Property is deleted, its Listing is deleted.
     Property.hasOne(models.Listing, {
       foreignKey: 'property_id',
       as: 'listings',

@@ -1,5 +1,3 @@
-// models/Photo.js
-
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -9,17 +7,21 @@ module.exports = (sequelize) => {
             primaryKey: true,
             autoIncrement: true,
         },
-        property_id: {
+        imageable_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
         },
-        flat_id: {
-            type: DataTypes.INTEGER,
-            allowNull: true,
+        imageable_type: {
+            type: DataTypes.STRING,
+            allowNull: false,
         },
         photo_url: {
             type: DataTypes.TEXT,
             allowNull: false,
+        },
+        name: { 
+            type: DataTypes.STRING,
+            allowNull: true, // Allow null for other photo types like property/flat images
         },
         is_primary: {
             type: DataTypes.BOOLEAN,
@@ -28,17 +30,13 @@ module.exports = (sequelize) => {
     }, {
         tableName: 'photos',
         timestamps: false,
+        indexes: [
+            {
+                name: 'idx_imageable',
+                fields: ['imageable_id', 'imageable_type'],
+            },
+        ],
     });
-    Photo.associate = (models) => {
-        Photo.belongsTo(models.Flat, {
-            foreignKey: 'flat_id',
-            as: 'flat',
-        });
-        Photo.belongsTo(models.Property, {
-            foreignKey: 'property_id',
-            as: 'property',
-        });
-    };
 
     return Photo;
 };

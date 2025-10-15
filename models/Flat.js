@@ -70,7 +70,11 @@ module.exports = (sequelize) => {
         Flat.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
         Flat.belongsTo(models.Property, { foreignKey: 'property_id', as: 'property' });
         Flat.hasMany(models.Photo, {
-            foreignKey: 'flat_id',
+            foreignKey: 'imageable_id',
+            constraints: false,
+            scope: {
+                imageable_type: 'Flat'
+            },
             as: 'photos',
             onDelete: 'CASCADE',
         });
