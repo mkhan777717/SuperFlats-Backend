@@ -8,8 +8,8 @@ const propertyController = require('./controllers/propertyController');
 const appointmentController = require('./controllers/appointmentController');
 const employeeController = require('./controllers/employeeController');
 const listingController = require('./controllers/listingController');
-const leaseController = require('./controllers/leaseController');
 const userController = require('./controllers/userController');
+const bookingController = require('./controllers/bookingController');
 const tenantController = require('./controllers/tenantController');
 const ledgerController = require('./controllers/ledgerController');
 const flatController = require('./controllers/flatController');
@@ -94,27 +94,31 @@ router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'agent'), e
 router.put('/employees/:id/role', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployeeRole);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('admin'), employeeController.deleteEmployee);
 
-// -------------------- Lease Routes --------------------
-router.post('/leases', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.createLease);
-router.get('/leases', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getAllLeases);
-router.patch('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.updateLease);
-router.delete('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.deleteLease);
-router.get('/leases/tenants', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.getAvailableTenants);
-router.get('/leases/listings', authMiddleware, roleMiddleware('admin', 'agent'), leaseController.getAvailableListings);
-router.get('/leases/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), leaseController.getLeaseById);
-
+// -------------------- Booking Routes --------------------
+router.post('/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.createBooking);
+router.get('/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getAllBookings);
+router.get('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getBookingById);
+router.put('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.updateBooking);
+router.delete('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.deleteBooking);
 
 
 // -------------------- Tenant Routes --------------------
-router.post('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.createTenant);
-router.get('/tenants', authMiddleware, roleMiddleware('admin'), tenantController.getAllTenants);
-router.get('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.getTenantById);
-router.put('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.updateTenant);
-router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin'), tenantController.deleteTenant);
+router.get('/tenants/available', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAvailableTenants);
+router.post('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.createTenant);
+router.get('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAllTenants);
+router.get('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantById);
+router.put('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.updateTenant);
+router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenant);
+// ID Proofs routes for a specific tenant
+router.post('/tenants/:tenantId/photo', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), tenantController.uploadTenantphotos);
+router.delete('/tenants/:tenantId/photo/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenantphotos);
+
 
 // -------------------- Flats Routes --------------------
 router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
 router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatsByProperty);
+router.get('/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAllAvailableFlats);
+
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);

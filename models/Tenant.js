@@ -19,22 +19,14 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: false,
         },
-        email: {
-            type: DataTypes.STRING,
-            allowNull: false,
-            unique: true,
-            validate: {
-                isEmail: true,
-            },
-        },
         phone_number: {
             type: DataTypes.STRING,
             allowNull: false,
         },
-        joined_at: {
-            type: DataTypes.DATE,
+        status: {
+            type: DataTypes.ENUM('available', 'occupied'),
             allowNull: false,
-            defaultValue: DataTypes.NOW
+            defaultValue: 'available',
         },
         created_at: {
             type: DataTypes.DATE,
@@ -52,9 +44,18 @@ module.exports = (sequelize) => {
             as: 'company',
             onDelete: 'CASCADE',
         });
-        Tenant.hasMany(models.Lease, {
+        Tenant.hasMany(models.Booking, {
             foreignKey: 'tenant_id',
-            as: 'leases',
+            as: 'bookings',
+        });
+        Tenant.hasMany(models.Photo, {
+            foreignKey: 'imageable_id',
+            constraints: false,
+            scope: {
+                imageable_type: 'Tenant'
+            },
+            as: 'photos',
+            onDelete: 'CASCADE',
         });
         Tenant.hasOne(models.Ledger, {
             foreignKey: 'tenant_id',
