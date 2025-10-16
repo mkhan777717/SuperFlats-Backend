@@ -77,6 +77,7 @@ router.get('/listings/flats', authMiddleware, roleMiddleware('admin', 'agent'), 
 router.get('/listings/:id', listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
+router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getListingsByProperty);
 
 
 // -------------------- Appointment Routes --------------------

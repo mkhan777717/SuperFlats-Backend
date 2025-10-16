@@ -20,7 +20,7 @@ exports.publicSearchListings = async (req, res) => {
             city,
             min_rent,
             max_rent,
-            type, 
+            type,
             sort_by,
             sortBy,
             sort_order,
@@ -96,7 +96,7 @@ exports.publicSearchListings = async (req, res) => {
                             model: Photo,
                             as: 'photos',
                             attributes: ['id', 'photo_url', 'is_primary'],
-                            separate: true, 
+                            separate: true,
                             order: [['is_primary', 'DESC']],
                         },
                     ],
@@ -192,8 +192,8 @@ exports.getMyListings = async (req, res) => {
         const company_id = req.user.employee.company_id;
         const {
             keywords,
-            sort_by, 
-            sortBy,  
+            sort_by,
+            sortBy,
             sort_order,
             sortOrder,
             limit = 10,
@@ -229,7 +229,7 @@ exports.getMyListings = async (req, res) => {
                 {
                     model: Flat,
                     as: 'flat',
-                    required: true, 
+                    required: true,
                     include: [
                         { model: Property, as: 'property', attributes: ['id', 'name'], required: true },
                         { model: Photo, as: 'photos', where: { is_primary: true }, required: false }
@@ -241,7 +241,7 @@ exports.getMyListings = async (req, res) => {
             limit: parseInt(limit, 10),
             offset: parseInt(offset, 10),
             distinct: true,
-            subQuery: false, 
+            subQuery: false,
         });
 
         res.status(200).json({
@@ -255,6 +255,91 @@ exports.getMyListings = async (req, res) => {
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
+
+/**
+ * Get all listings for a specific property, with search, sort, and pagination.
+ */
+exports.getListingsByProperty = async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+        const company_id = req.user.employee.company_id;
+
+        if (!company_id) {
+            return res.status(403).json({ message: 'User is not associated with a company.' });
+        }
+
+        // Authorization: Check if the property exists and belongs to the user's company
+        const property = await Property.findOne({ where: { id: propertyId, company_id } });
+        if (!property) {
+            return res.status(404).json({ message: 'Property not found or you are not authorized to view its listings.' });
+        }
+
+        const {
+            keywords,
+            sort_by,
+            sortBy,
+            sort_order,
+            sortOrder,
+            limit = 10,
+            offset = 0
+        } = req.query;
+
+        const whereClause = { company_id };
+        const flatWhereClause = { property_id: propertyId };
+
+        if (keywords) {
+            const keywordQuery = { [Op.like]: `%${keywords}%` };
+            whereClause[Op.or] = [
+                { title: keywordQuery },
+                { '$flat.unit_number$': keywordQuery },
+            ];
+        }
+
+        const validSortColumns = ['created_at', 'monthly_rent'];
+        const reqSortBy = sort_by || sortBy || 'created_at';
+        const reqSortOrder = sort_order || sortOrder || 'DESC';
+        const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
+        const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+        const order = finalSortBy === 'monthly_rent'
+            ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
+            : [[finalSortBy, finalSortOrder]];
+
+        const { count, rows } = await Listing.findAndCountAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Flat,
+                    as: 'flat',
+                    where: flatWhereClause,
+                    required: true,
+                    include: [
+                        { model: Property, as: 'property', attributes: ['id', 'name'], required: true },
+                        { model: Photo, as: 'photos', where: { is_primary: true }, required: false }
+                    ]
+                },
+                { model: User, as: 'lister', attributes: ['id', 'name'] },
+            ],
+            order,
+            limit: parseInt(limit, 10),
+            offset: parseInt(offset, 10),
+            distinct: true,
+            subQuery: false,
+        });
+
+        res.status(200).json({
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: Math.floor(offset / limit) + 1,
+            listings: rows,
+        });
+
+    } catch (error) {
+        logger.error(`Error fetching listings for property ${req.params.propertyId}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
 
 // Get available flats for listing
 exports.getAvailableFlatsForListing = async (req, res) => {
