@@ -67,6 +67,7 @@ router.delete(
 );
 
 
+
 // -------------------- Listing Routes --------------------
 // NEW Public search endpoint for all active listings
 router.get('/listings/public/search', listingController.publicSearchListings);
@@ -101,6 +102,7 @@ router.get('/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookin
 router.get('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getBookingById);
 router.patch('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.updateBooking);
 router.delete('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.deleteBooking);
+router.get('/properties/:propertyId/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getBookingsByProperty);
 
 
 // -------------------- Tenant Routes --------------------

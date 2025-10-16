@@ -125,9 +125,7 @@ exports.getAllBookings = async (req, res) => {
       limit = 10,
       offset = 0,
       search,
-      status,
       flatType,
-      propertyId,
       sortBy = 'start_date',
       sortOrder = 'DESC'
     } = req.query;
@@ -149,11 +147,6 @@ exports.getAllBookings = async (req, res) => {
     if (flatType && ['1RK', '1BHK', '2BHK', '3BHK', '3BHK+'].includes(flatType)) {
       flatWhereClause.type = flatType;
     }
-
-    if (propertyId) {
-      flatWhereClause.property_id = propertyId;
-    }
-
 
     const validSortColumns = ['start_date', 'end_date', 'monthly_rent', 'created_at'];
     const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'start_date';
@@ -197,8 +190,89 @@ exports.getAllBookings = async (req, res) => {
   }
 };
 
+/**
+ * Retrieves a list of all bookings for a specific property.
+ */
+exports.getBookingsByProperty = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const company_id = req.user.employee.company_id;
+
+    const {
+      limit = 10,
+      offset = 0,
+      search,
+      flatType,
+      sortBy = 'start_date',
+      sortOrder = 'DESC'
+
+    } = req.query;
+
+    // Authorization: Verify the property exists and belongs to the user's company
+    const property = await Property.findOne({ where: { id: propertyId, company_id: company_id } });
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found or you are not authorized to view it.' });
+    }
+
+    const whereClause = {};
+    const flatWhereClause = { property_id: propertyId }; // Hard-set the property ID
+
+    if (search) {
+      const keywordQuery = { [Op.like]: `%${search}%` };
+      whereClause[Op.or] = [
+        { '$tenant.name$': keywordQuery },
+        { '$tenant.phone_number$': keywordQuery },
+        { '$flat.title$': keywordQuery },
+        { '$flat.unit_number$': keywordQuery },
+      ];
+    }
 
 
+    if (flatType && ['1RK', '1BHK', '2BHK', '3BHK', '3BHK+'].includes(flatType)) {
+      flatWhereClause.type = flatType;
+    }
+
+    const validSortColumns = ['start_date', 'end_date', 'monthly_rent', 'created_at'];
+    const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'start_date';
+    const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const order = finalSortBy === 'monthly_rent'
+      ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
+      : [[finalSortBy, finalSortOrder]];
+
+    const finalLimit = parseInt(limit, 10);
+    const finalOffset = parseInt(offset, 10);
+
+    const { count, rows } = await Booking.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: Flat,
+          as: 'flat',
+          where: flatWhereClause,
+          required: true,
+          include: [{ model: Property, as: 'property', attributes: ['id', 'name'] }]
+        },
+        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] },
+      ],
+      order: order,
+      limit: finalLimit,
+      offset: finalOffset,
+      distinct: true,
+      subQuery: false,
+    });
+
+    res.status(200).json({
+      totalItems: count,
+      totalPages: Math.ceil(count / finalLimit),
+      currentPage: Math.floor(finalOffset / finalLimit) + 1,
+      bookings: rows,
+    });
+  } catch (error) {
+    logger.error(`Error fetching bookings for property ${req.params.propertyId}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
 
 
 /**
