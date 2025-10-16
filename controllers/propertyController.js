@@ -128,7 +128,7 @@ exports.getProperties = async (req, res) => {
   const company_id = req.user.employee.company_id;
 
   const {
-    searchTerm,
+    keywords,
     roomCountType,
     is_managed,
     sortBy = 'created_at',
@@ -147,12 +147,12 @@ exports.getProperties = async (req, res) => {
   const validRoomCountTypes = ['1rk', '1bhk', '2bhk', '3bhk', '3bhk_plus'];
 
 
-  if (searchTerm) {
+  if (keywords) {
     andConditions.push({
       [Op.or]: [
-        { name: { [Op.like]: `%${searchTerm}%` } },
-        { address: { [Op.like]: `%${searchTerm}%` } },
-        { description: { [Op.like]: `%${searchTerm}%` } },
+        { name: { [Op.like]: `%${keywords}%` } },
+        { address: { [Op.like]: `%${keywords}%` } },
+        { description: { [Op.like]: `%${keywords}%` } },
       ],
     });
   }

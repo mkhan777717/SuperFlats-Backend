@@ -124,7 +124,7 @@ exports.getAllBookings = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      search,
+      keywords,
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
@@ -133,8 +133,8 @@ exports.getAllBookings = async (req, res) => {
     const whereClause = {};
     const flatWhereClause = { company_id: company_id };
 
-    if (search) {
-      const keywordQuery = { [Op.like]: `%${search}%` };
+    if (keywords) {
+      const keywordQuery = { [Op.like]: `%${keywords}%` };
       whereClause[Op.or] = [
         { '$tenant.name$': keywordQuery },
         { '$tenant.phone_number$': keywordQuery },
@@ -201,7 +201,7 @@ exports.getBookingsByProperty = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      search,
+      keywords,
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
@@ -217,8 +217,8 @@ exports.getBookingsByProperty = async (req, res) => {
     const whereClause = {};
     const flatWhereClause = { property_id: propertyId }; // Hard-set the property ID
 
-    if (search) {
-      const keywordQuery = { [Op.like]: `%${search}%` };
+    if (keywords) {
+      const keywordQuery = { [Op.like]: `%${keywords}%` };
       whereClause[Op.or] = [
         { '$tenant.name$': keywordQuery },
         { '$tenant.phone_number$': keywordQuery },

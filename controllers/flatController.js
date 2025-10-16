@@ -136,7 +136,7 @@ exports.getFlatsByProperty = async (req, res) => {
     }
 
     const {
-        searchTerm,
+        keywords,
         flatType,
         flatStatus,
         sortBy = 'created_at',
@@ -156,12 +156,12 @@ exports.getFlatsByProperty = async (req, res) => {
     const validStatuses = ['available', 'occupied', 'maintenance'];
 
 
-    if (searchTerm) {
+    if (keywords) {
         andConditions.push({
             [Op.or]: [
-                { unit_number: { [Op.like]: `%${searchTerm}%` } },
-                { title: { [Op.like]: `%${searchTerm}%` } },
-                { description: { [Op.like]: `%${searchTerm}%` } },
+                { unit_number: { [Op.like]: `%${keywords}%` } },
+                { title: { [Op.like]: `%${keywords}%` } },
+                { description: { [Op.like]: `%${keywords}%` } },
             ],
         });
     }

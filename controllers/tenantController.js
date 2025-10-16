@@ -140,7 +140,7 @@ exports.getAllTenants = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      search,
+      keywords,
       status,
       propertyId, // Add propertyId filter
       sortBy = 'created_at',
@@ -154,10 +154,10 @@ exports.getAllTenants = async (req, res) => {
 
     const finalWhere = { company_id: companyId };
 
-    if (search) {
+    if (keywords) {
       finalWhere[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { phone_number: { [Op.like]: `%${search}%` } },
+        { name: { [Op.like]: `%${keywords}%` } },
+        { phone_number: { [Op.like]: `%${keywords}%` } },
       ];
     }
 
@@ -219,7 +219,7 @@ exports.getTenantsByProperty = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      search,
+      keywords,
       status,
       sortBy = 'created_at',
       sortOrder = 'DESC'
@@ -241,10 +241,10 @@ exports.getTenantsByProperty = async (req, res) => {
       property_id: propertyId
     };
 
-    if (search) {
+    if (keywords) {
       finalWhere[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { phone_number: { [Op.like]: `%${search}%` } },
+        { name: { [Op.like]: `%${keywords}%` } },
+        { phone_number: { [Op.like]: `%${keywords}%` } },
       ];
     }
 
