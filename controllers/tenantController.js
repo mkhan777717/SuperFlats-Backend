@@ -30,11 +30,19 @@ exports.createTenant = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { name, phone_number } = value;
+    const { name, phone_number, property_id } = value;
+
+    // Verify the property exists and belongs to the same company
+    const property = await Property.findOne({ where: { id: property_id, company_id: companyId } });
+    if (!property) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Property not found or does not belong to your company.' });
+    }
 
     const newTenant = await Tenant.create({
       name,
       phone_number,
+      property_id,
       company_id: companyId,
     }, { transaction });
 
@@ -81,6 +89,7 @@ exports.getTenantById = async (req, res) => {
         company_id: companyId
       },
       include: [
+        { model: Property, as: 'property' }, // Include property details
         {
           model: Booking,
           as: 'bookings',
@@ -133,6 +142,7 @@ exports.getAllTenants = async (req, res) => {
       offset = 0,
       search,
       status,
+      propertyId, // Add propertyId filter
       sortBy = 'created_at',
       sortOrder = 'DESC'
     } = req.query;
@@ -155,6 +165,10 @@ exports.getAllTenants = async (req, res) => {
       finalWhere.status = status;
     }
 
+    if (propertyId) {
+      finalWhere.property_id = propertyId;
+    }
+
     const validSortColumns = ['created_at', 'name'];
     const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
     const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -166,6 +180,7 @@ exports.getAllTenants = async (req, res) => {
       where: finalWhere,
 
       include: [
+        { model: Property, as: 'property', attributes: ['id', 'name'] }, // Include property details
         {
           model: Photo,
           as: 'photos',

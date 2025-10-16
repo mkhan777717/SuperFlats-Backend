@@ -100,6 +100,7 @@ module.exports = (sequelize) => {
 
   Property.associate = (models) => {
     Property.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
+    Property.hasMany(models.Flat, { foreignKey: 'property_id', as: 'flats' });
     Property.hasMany(models.Photo, {
       foreignKey: 'imageable_id',
       constraints: false,
@@ -109,9 +110,9 @@ module.exports = (sequelize) => {
       as: 'photos',
       onDelete: 'CASCADE',
     });
-    Property.hasOne(models.Listing, {
+    Property.hasMany(models.Tenant, {
       foreignKey: 'property_id',
-      as: 'listings',
+      as: 'tenants',
       onDelete: 'CASCADE',
     });
   };

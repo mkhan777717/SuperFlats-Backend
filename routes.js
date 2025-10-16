@@ -107,7 +107,7 @@ router.get('/tenants/available', authMiddleware, roleMiddleware('admin', 'agent'
 router.post('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.createTenant);
 router.get('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAllTenants);
 router.get('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantById);
-router.put('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.updateTenant);
+router.patch('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.updateTenant);
 router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenant);
 // ID Proofs routes for a specific tenant
 router.post('/tenants/:tenantId/photo', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), tenantController.uploadTenantphotos);

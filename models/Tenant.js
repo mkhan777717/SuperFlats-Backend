@@ -15,6 +15,14 @@ module.exports = (sequelize) => {
                 key: 'id',
             },
         },
+        property_id: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'properties',
+                key: 'id',
+            },
+        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -42,6 +50,11 @@ module.exports = (sequelize) => {
         Tenant.belongsTo(models.Company, {
             foreignKey: 'company_id',
             as: 'company',
+            onDelete: 'CASCADE',
+        });
+        Tenant.belongsTo(models.Property, {
+            foreignKey: 'property_id',
+            as: 'property',
             onDelete: 'CASCADE',
         });
         Tenant.hasMany(models.Booking, {

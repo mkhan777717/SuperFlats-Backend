@@ -5,7 +5,7 @@ const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({ 
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
 });
@@ -61,7 +61,7 @@ const createListingSchema = Joi.object({
   title: Joi.string().min(5).required(),
   description: Joi.string().min(10).optional().allow(''),
   monthly_rent: Joi.number().precision(2).positive().required(),
-  security_amount: Joi.number().precision(2).min(0).required(), 
+  security_amount: Joi.number().precision(2).min(0).required(),
   security_type: Joi.string().valid('lease', 'deposit').required(),
   status: Joi.string().valid('active', 'closed', 'pending').optional().default('pending'),
 });
@@ -71,7 +71,7 @@ const updateListingSchema = Joi.object({
   title: Joi.string().min(5).optional(),
   description: Joi.string().min(10).optional().allow(''),
   monthly_rent: Joi.number().precision(2).positive().optional(),
-  security_amount: Joi.number().precision(2).min(0).optional(), 
+  security_amount: Joi.number().precision(2).min(0).optional(),
   security_type: Joi.string().valid('lease', 'deposit').optional(),
   status: Joi.string().valid('active', 'closed', 'pending').optional(),
 }).min(1);
@@ -101,21 +101,23 @@ const updateBookingSchema = Joi.object({
 
 // Joi schema for creating a new tenant
 const createTenantSchema = Joi.object({
+  property_id: Joi.number().integer().positive().required(),
   name: Joi.string().min(2).max(100).required(),
   phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  status: Joi.string().valid('available', 'occupied').optional(), 
+  status: Joi.string().valid('available', 'occupied').optional(),
 });
 
 // Joi schema for updating a tenant
 const updateTenantSchema = Joi.object({
+  property_id: Joi.number().integer().positive().optional(),
   name: Joi.string().min(2).max(100).optional(),
   phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).optional().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  status: Joi.string().valid('available', 'occupied').optional(), 
-}).min(1); 
+  status: Joi.string().valid('available', 'occupied').optional(),
+}).min(1);
 
 
 // Joi schema for uploading an ID proof
@@ -165,7 +167,7 @@ const createFlatSchema = Joi.object({
   description: Joi.string().optional().allow(''),
   unit_number: Joi.string().trim().uppercase().min(1).required(),
   type: Joi.string().valid('1RK', '1BHK', '2BHK', '3BHK', '3BHK+').required(),
-  area_sqft: Joi.number().precision(2).optional().allow(null), 
+  area_sqft: Joi.number().precision(2).optional().allow(null),
   flatStatus: Joi.string().valid('available', 'occupied', 'maintenance').optional().default('available'),
   unique_amenities: Joi.array().items(Joi.string()).optional(),
 });
@@ -191,7 +193,7 @@ module.exports = {
   updateBookingSchema,
   employeeCreationSchema,
   updateEmployeeRoleSchema,
-  createAppointmentSchema,      
+  createAppointmentSchema,
   updateAppointmentSchema,
   assignEmployeeSchema,
   updateAppointmentStatusSchema,
