@@ -209,6 +209,86 @@ exports.getAllTenants = async (req, res) => {
 };
 
 /**
+ * Retrieves all tenant profiles for a specific property.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ */
+exports.getTenantsByProperty = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const {
+      limit = 10,
+      offset = 0,
+      search,
+      status,
+      sortBy = 'created_at',
+      sortOrder = 'DESC'
+    } = req.query;
+
+    const companyId = req.user.employee.company_id;
+    if (!companyId) {
+      return res.status(401).json({ message: 'User is not associated with a company.' });
+    }
+
+    // Verify property exists and belongs to the company for authorization
+    const property = await Property.findOne({ where: { id: propertyId, company_id: companyId } });
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found or does not belong to your company.' });
+    }
+
+    const finalWhere = {
+      company_id: companyId,
+      property_id: propertyId
+    };
+
+    if (search) {
+      finalWhere[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { phone_number: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    if (status) {
+      finalWhere.status = status;
+    }
+
+    const validSortColumns = ['created_at', 'name'];
+    const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+    const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const order = [[finalSortBy, finalSortOrder]];
+
+    const finalLimit = parseInt(limit, 10);
+    const finalOffset = parseInt(offset, 10);
+
+    const { count, rows } = await Tenant.findAndCountAll({
+      where: finalWhere,
+      include: [
+        { model: Property, as: 'property', attributes: ['id', 'name'] },
+        { model: Photo, as: 'photos', required: false }
+      ],
+      limit: finalLimit,
+      offset: finalOffset,
+      order: order,
+      distinct: true,
+      subQuery: false
+    });
+
+    logger.info(`Retrieved ${rows.length} of ${count} tenants for property ID ${propertyId}.`);
+    res.status(200).json({
+      totalItems: count,
+      totalPages: Math.ceil(count / finalLimit),
+      currentPage: Math.floor(finalOffset / finalLimit) + 1,
+      tenants: rows,
+    });
+
+  } catch (error) {
+    logger.error(`Error fetching tenants for property ID ${req.params.propertyId}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+
+/**
  * Updates a tenant's profile, ensuring they belong to the user's company.
  * @param {object} req - The request object (must contain req.user.employee.company_id).
  * @param {object} res - The response object.

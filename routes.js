@@ -66,6 +66,7 @@ router.delete(
   propertyController.deletePhoto
 );
 
+
 // -------------------- Listing Routes --------------------
 // NEW Public search endpoint for all active listings
 router.get('/listings/public/search', listingController.publicSearchListings);
@@ -112,6 +113,8 @@ router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), 
 // ID Proofs routes for a specific tenant
 router.post('/tenants/:tenantId/photo', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), tenantController.uploadTenantphotos);
 router.delete('/tenants/:tenantId/photo/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenantphotos);
+router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantsByProperty);
+
 
 
 // -------------------- Flats Routes --------------------
