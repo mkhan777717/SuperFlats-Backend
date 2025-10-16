@@ -55,7 +55,7 @@ exports.createBooking = async (req, res) => {
       monthly_rent,
       security_amount,
       security_type,
-      status: 'active', 
+      status: 'active',
     }, { transaction });
 
     const [ledger] = await Ledger.findOrCreate({
@@ -125,12 +125,15 @@ exports.getAllBookings = async (req, res) => {
       limit = 10,
       offset = 0,
       search,
+      status,
+      flatType,
+      propertyId,
       sortBy = 'start_date',
       sortOrder = 'DESC'
     } = req.query;
 
     const whereClause = {};
-    const flatWhereClause = { company_id: company_id }; 
+    const flatWhereClause = { company_id: company_id };
 
     if (search) {
       const keywordQuery = { [Op.like]: `%${search}%` };
@@ -142,6 +145,15 @@ exports.getAllBookings = async (req, res) => {
         { '$flat.property.name$': keywordQuery },
       ];
     }
+
+    if (flatType && ['1RK', '1BHK', '2BHK', '3BHK', '3BHK+'].includes(flatType)) {
+      flatWhereClause.type = flatType;
+    }
+
+    if (propertyId) {
+      flatWhereClause.property_id = propertyId;
+    }
+
 
     const validSortColumns = ['start_date', 'end_date', 'monthly_rent', 'created_at'];
     const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'start_date';
@@ -170,7 +182,7 @@ exports.getAllBookings = async (req, res) => {
       limit: finalLimit,
       offset: finalOffset,
       distinct: true,
-      subQuery: false, 
+      subQuery: false,
     });
 
     res.status(200).json({

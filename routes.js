@@ -98,7 +98,7 @@ router.delete('/employees/:id', authMiddleware, roleMiddleware('admin'), employe
 router.post('/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.createBooking);
 router.get('/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getAllBookings);
 router.get('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getBookingById);
-router.put('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.updateBooking);
+router.patch('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.updateBooking);
 router.delete('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.deleteBooking);
 
 

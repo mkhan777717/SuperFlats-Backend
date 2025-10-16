@@ -115,7 +115,7 @@ exports.createFlat = async (req, res) => {
  * Retrieves a list of flats for a specific property, enforcing company ownership.
  */
 exports.getFlatsByProperty = async (req, res) => {
-    const { propertyId } = req.params; 
+    const { propertyId } = req.params;
 
     if (!req.user || !req.user.employee || !req.user.employee.company_id) {
         return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
@@ -248,7 +248,7 @@ exports.deleteFlat = async (req, res) => {
                 logger.warn(`Failed to delete photo from storage for photo id ${photo.id}: ${err.message || err}`);
             }
         }));
-        await Photo.destroy({ where: { imageable_id: flatId, imageable_type: 'Flat' }, transaction }); // Explicitly delete photos first
+        await Photo.destroy({ where: { imageable_id: flatId, imageable_type: 'Flat' }, transaction });
         await flat.destroy({ transaction });
 
         const property = await Property.findByPk(propertyId, { transaction });
@@ -360,7 +360,7 @@ exports.updateFlat = async (req, res) => {
                 where: {
                     property_id: flat.property_id,
                     unit_number: updateData.unit_number,
-                    id: { [Op.ne]: flatId } // Exclude the current flat from the check.
+                    id: { [Op.ne]: flatId }
                 },
                 transaction
             });
@@ -391,7 +391,7 @@ exports.updateFlat = async (req, res) => {
         const updatedFlatWithAssociations = await Flat.findByPk(flatId, {
             include: [
                 { model: Property, as: 'property' },
-                { model: Photo, as: 'photos', required: false }, 
+                { model: Photo, as: 'photos', required: false },
             ]
         });
 
@@ -553,8 +553,6 @@ exports.getAllAvailableFlats = async (req, res) => {
                 company_id: company_id,
                 flatStatus: 'available'
             },
-            include: [{ model: Property, as: 'property', attributes: ['id', 'name', 'address'] }],
-            attributes: ['id', 'title', 'unit_number', 'type'],
             order: [['created_at', 'DESC']],
         });
 
