@@ -6,7 +6,7 @@ const Booking = db.Booking;
 const Flat = db.Flat;
 const Property = db.Property;
 const Photo = db.Photo;
-const { uploadFile, deleteFile } = require('../utils/fileService'); 
+const { uploadFile, deleteFile } = require('../utils/fileService');
 const { createTenantSchema, updateTenantSchema, idProofUploadSchema } = require('../utils/validator');
 
 /**
@@ -132,7 +132,7 @@ exports.getAllTenants = async (req, res) => {
       limit = 10,
       offset = 0,
       search,
-      status, 
+      status,
       sortBy = 'created_at',
       sortOrder = 'DESC'
     } = req.query;
@@ -169,7 +169,6 @@ exports.getAllTenants = async (req, res) => {
         {
           model: Photo,
           as: 'photos',
-          attributes: ['id', 'name', 'photo_url'],
           required: false,
         }
       ],
@@ -177,6 +176,7 @@ exports.getAllTenants = async (req, res) => {
       offset: finalOffset,
       order: order,
       distinct: true,
+      subQuery: false
     });
 
     logger.info(`Retrieved ${rows.length} of ${count} tenant profiles for company ${companyId}.`);
