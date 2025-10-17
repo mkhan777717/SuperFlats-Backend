@@ -539,7 +539,7 @@ exports.uploadFlatPhoto = async (req, res) => {
 };
 
 /**
- * Retrieves all available (not occupied) flats that can be booked.
+ * Retrieves all available (not occupied) flats for a specific property, to be used for creating bookings.
  */
 exports.getAllAvailableFlats = async (req, res) => {
     try {
@@ -547,18 +547,27 @@ exports.getAllAvailableFlats = async (req, res) => {
             return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
         }
 
+        const { propertyId } = req.params;
         const company_id = req.user.employee.company_id;
+
+        // Authorization: Verify the property exists and belongs to the user's company
+        const property = await Property.findOne({ where: { id: propertyId, company_id: company_id } });
+        if (!property) {
+            return res.status(404).json({ message: 'Property not found or you are not authorized to view it.' });
+        }
+
         const availableFlats = await Flat.findAll({
             where: {
                 company_id: company_id,
+                property_id: propertyId, // Filter by the specific property
                 flatStatus: 'available'
             },
-            order: [['created_at', 'DESC']],
+            order: [['unit_number', 'ASC']], // Sort by unit number for easier selection
         });
 
         res.status(200).json(availableFlats);
     } catch (error) {
-        logger.error('Error fetching available flats:', error);
+        logger.error(`Error fetching available flats for property ${req.params.propertyId}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };

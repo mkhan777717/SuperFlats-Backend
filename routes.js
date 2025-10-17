@@ -107,7 +107,7 @@ router.get('/properties/:propertyId/bookings', authMiddleware, roleMiddleware('a
 
 
 // -------------------- Tenant Routes --------------------
-router.get('/tenants/available', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAvailableTenants);
+router.get('/properties/:propertyId/tenants/available', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAvailableTenants);
 router.post('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.createTenant);
 router.get('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAllTenants);
 router.get('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantById);
@@ -123,7 +123,7 @@ router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('ad
 // -------------------- Flats Routes --------------------
 router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
 router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatsByProperty);
-router.get('/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAllAvailableFlats);
+router.get('/properties/:propertyId/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAllAvailableFlats);
 
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);

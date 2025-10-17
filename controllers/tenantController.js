@@ -361,23 +361,36 @@ exports.deleteTenant = async (req, res) => {
 };
 
 /**
- * Retrieves all tenant entities that do not have an active booking.
+ * Retrieves all tenant entities for a specific property that do not have an active booking.
  */
 exports.getAvailableTenants = async (req, res) => {
   try {
     const company_id = req.user.employee.company_id;
+    if (!company_id) {
+      return res.status(401).json({ message: 'User is not associated with a company.' });
+    }
+
+    const { propertyId } = req.params;
+
+    // Authorization: Verify the property exists and belongs to the user's company
+    const property = await Property.findOne({ where: { id: propertyId, company_id: company_id } });
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found or you are not authorized to view it.' });
+    }
+
     const tenants = await Tenant.findAll({
       attributes: ['id', 'name', 'phone_number'],
       where: {
         status: 'available',
-        company_id: company_id
+        company_id: company_id,
+        property_id: propertyId, // Filter by the specific property
       },
       order: [['name', 'ASC']],
     });
 
     res.status(200).json(tenants);
   } catch (error) {
-    logger.error('Error fetching available tenants:', error);
+    logger.error(`Error fetching available tenants for property ${req.params.propertyId}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
