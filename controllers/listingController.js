@@ -23,7 +23,6 @@ exports.publicSearchListings = async (req, res) => {
             type,
             sort_by,
             sortBy,
-            sort_order,
             sortOrder,
             limit = 12,
             offset = 0,
@@ -66,7 +65,7 @@ exports.publicSearchListings = async (req, res) => {
         // --- Sorting ---
         const validSortColumns = ['created_at', 'monthly_rent'];
         const reqSortBy = sort_by || sortBy || 'created_at'; // Use whichever is provided, default to created_at
-        const reqSortOrder = sort_order || sortOrder || 'DESC';
+        const reqSortOrder = sortOrder || sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -194,7 +193,6 @@ exports.getMyListings = async (req, res) => {
             keywords,
             sort_by,
             sortBy,
-            sort_order,
             sortOrder,
             limit = 10,
             offset = 0
@@ -215,7 +213,7 @@ exports.getMyListings = async (req, res) => {
         // --- Build Order Clause ---
         const validSortColumns = ['created_at', 'monthly_rent'];
         const reqSortBy = sort_by || sortBy || 'created_at'; // Use whichever is provided, default to created_at
-        const reqSortOrder = sort_order || sortOrder || 'DESC';
+        const reqSortOrder = sortOrder || sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -278,7 +276,6 @@ exports.getListingsByProperty = async (req, res) => {
             keywords,
             sort_by,
             sortBy,
-            sort_order,
             sortOrder,
             limit = 10,
             offset = 0
@@ -297,7 +294,7 @@ exports.getListingsByProperty = async (req, res) => {
 
         const validSortColumns = ['created_at', 'monthly_rent'];
         const reqSortBy = sort_by || sortBy || 'created_at';
-        const reqSortOrder = sort_order || sortOrder || 'DESC';
+        const reqSortOrder = sortOrder || sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 

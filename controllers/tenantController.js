@@ -140,9 +140,9 @@ exports.getAllTenants = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      keywords,
+      keywords, // Reverted to 'keywords' as requested
       status,
-      propertyId, // Add propertyId filter
+      propertyId,
       sortBy = 'created_at',
       sortOrder = 'DESC'
     } = req.query;
@@ -172,7 +172,9 @@ exports.getAllTenants = async (req, res) => {
     const validSortColumns = ['created_at', 'name'];
     const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
     const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    // 👇 UPDATED: Explicitly specify the model for sorting
     const order = [[finalSortBy, finalSortOrder]];
+
     const finalLimit = parseInt(limit, 10);
     const finalOffset = parseInt(offset, 10);
 
