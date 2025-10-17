@@ -7,6 +7,14 @@ module.exports = (sequelize) => {
             primaryKey: true,
             autoIncrement: true,
         },
+        company_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'companies',
+                key: 'id',
+            },
+        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -50,7 +58,6 @@ module.exports = (sequelize) => {
     });
 
     User.associate = (models) => {
-        // When a User is deleted, their Listings are deleted.
         User.hasMany(models.Listing, {
             foreignKey: 'lister_id',
             as: 'listings',
@@ -62,7 +69,6 @@ module.exports = (sequelize) => {
             onDelete: 'CASCADE',
         });
 
-        // When a User is deleted, their Employee record is deleted.
         User.hasOne(models.Employee, {
             foreignKey: 'user_id',
             as: 'employee',

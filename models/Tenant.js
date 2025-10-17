@@ -60,6 +60,7 @@ module.exports = (sequelize) => {
         Tenant.hasMany(models.Booking, {
             foreignKey: 'tenant_id',
             as: 'bookings',
+            onDelete: 'CASCADE',
         });
         Tenant.hasMany(models.Photo, {
             foreignKey: 'imageable_id',
@@ -72,7 +73,8 @@ module.exports = (sequelize) => {
         });
         Tenant.hasOne(models.Ledger, {
             foreignKey: 'tenant_id',
-            as: 'ledger'
+            as: 'ledger',
+            onDelete: 'CASCADE',
         });
     };
 

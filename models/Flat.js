@@ -83,6 +83,11 @@ module.exports = (sequelize) => {
             as: 'booking',
             onDelete: 'CASCADE',
         });
+        Flat.hasMany(models.Listing, {
+            foreignKey: 'flat_id',
+            as: 'listings',
+            onDelete: 'CASCADE',
+        });
     };
 
     return Flat;

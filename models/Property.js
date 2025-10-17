@@ -100,7 +100,11 @@ module.exports = (sequelize) => {
 
   Property.associate = (models) => {
     Property.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
-    Property.hasMany(models.Flat, { foreignKey: 'property_id', as: 'flats' });
+    Property.hasMany(models.Flat, {
+      foreignKey: 'property_id',
+      as: 'flats',
+      onDelete: 'CASCADE', 
+    });
     Property.hasMany(models.Photo, {
       foreignKey: 'imageable_id',
       constraints: false,
