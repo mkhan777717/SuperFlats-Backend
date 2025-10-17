@@ -73,7 +73,7 @@ router.delete(
 router.get('/listings/public/search', listingController.publicSearchListings);
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
 router.get('/listings/me', authMiddleware, roleMiddleware('agent', 'admin'), listingController.getMyListings);
-router.get('/listings/flats', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getAvailableFlatsForListing);
+router.get('/properties/:propertyId/listings/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getAvailableFlatsForListing);
 router.get('/listings/:id', listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
