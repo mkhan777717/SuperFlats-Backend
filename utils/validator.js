@@ -32,6 +32,17 @@ const updateAppointmentStatusSchema = Joi.object({
   status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').required(),
 });
 
+// Joi schema for patching an appointment (replaces other update schemas)
+const patchAppointmentSchema = Joi.object({
+  listing_id: Joi.number().integer().positive().optional(),
+  scheduled_at: Joi.date().iso().optional(),
+  employee_id: Joi.number().integer().positive().optional().allow(null), // Allow un-assigning
+  status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').optional(),
+}).min(1).messages({
+  'object.min': 'At least one field to update must be provided.'
+});
+
+
 // Joi schema for creating a new property
 const createPropertySchema = Joi.object({
   name: Joi.string().min(5).required(),
@@ -194,9 +205,7 @@ module.exports = {
   employeeCreationSchema,
   updateEmployeeRoleSchema,
   createAppointmentSchema,
-  updateAppointmentSchema,
-  assignEmployeeSchema,
-  updateAppointmentStatusSchema,
+  patchAppointmentSchema, // The new consolidated schema
   createTenantSchema,
   updateTenantSchema,
   idProofUploadSchema,

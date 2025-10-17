@@ -82,12 +82,10 @@ router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('a
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
-router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.updateAppointment)
-router.put('/appointments/:id/assign', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.assignEmployee);
+router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), appointmentController.updateAppointment);
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
-router.put('/appointments/:id/status', authMiddleware, roleMiddleware('client', 'agent', 'admin'), appointmentController.updateAppointmentStatus);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
-router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin'), appointmentController.deleteAppointment);
+router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment); // Changed to allow agents to delete
 
 // -------------------- Employee Routes --------------------
 // Updated route to get all employees for the authenticated user's company
@@ -123,7 +121,7 @@ router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('ad
 // -------------------- Flats Routes --------------------
 router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
 router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatsByProperty);
-router.get('/properties/:propertyId/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAllAvailableFlats);
+router.get('/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlats);
 
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);

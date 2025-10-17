@@ -539,35 +539,74 @@ exports.uploadFlatPhoto = async (req, res) => {
 };
 
 /**
- * Retrieves all available (not occupied) flats for a specific property, to be used for creating bookings.
+ * Retrieves a paginated and filtered list of all flats for the entire company.
  */
-exports.getAllAvailableFlats = async (req, res) => {
+exports.getFlats = async (req, res) => {
     try {
         if (!req.user || !req.user.employee || !req.user.employee.company_id) {
             return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
         }
 
-        const { propertyId } = req.params;
         const company_id = req.user.employee.company_id;
+        const {
+            keywords,
+            propertyId, // Allow filtering by property
+            flatType,
+            flatStatus,
+            sortBy = 'created_at',
+            sortOrder = 'DESC',
+            limit = 10,
+            offset = 0,
+        } = req.query;
 
-        // Authorization: Verify the property exists and belongs to the user's company
-        const property = await Property.findOne({ where: { id: propertyId, company_id: company_id } });
-        if (!property) {
-            return res.status(404).json({ message: 'Property not found or you are not authorized to view it.' });
+        const whereConditions = { company_id: company_id };
+
+        if (keywords) {
+            whereConditions[Op.or] = [
+                { unit_number: { [Op.like]: `%${keywords}%` } },
+                { title: { [Op.like]: `%${keywords}%` } },
+                { '$property.name$': { [Op.like]: `%${keywords}%` } }, // Search by property name
+            ];
         }
 
-        const availableFlats = await Flat.findAll({
-            where: {
-                company_id: company_id,
-                property_id: propertyId, // Filter by the specific property
-                flatStatus: 'available'
-            },
-            order: [['unit_number', 'ASC']], // Sort by unit number for easier selection
+        if (propertyId) {
+            whereConditions.property_id = propertyId;
+        }
+        if (flatType) {
+            whereConditions.type = flatType;
+        }
+        if (flatStatus) {
+            whereConditions.flatStatus = flatStatus;
+        }
+
+        const validSortColumns = ['created_at', 'unit_number', 'area_sqft'];
+        const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+        const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const finalLimit = parseInt(limit, 10);
+        const finalOffset = parseInt(offset, 10);
+
+        const { count, rows } = await Flat.findAndCountAll({
+            where: whereConditions,
+            include: [
+                { model: Property, as: 'property', attributes: ['id', 'name'] },
+                { model: Photo, as: 'photos', where: { is_primary: true }, required: false },
+            ],
+            limit: finalLimit,
+            offset: finalOffset,
+            order: [[finalSortBy, finalSortOrder]],
+            distinct: true,
+            subQuery: false,
         });
 
-        res.status(200).json(availableFlats);
+        res.status(200).json({
+            totalItems: count,
+            totalPages: Math.ceil(count / finalLimit),
+            currentPage: Math.floor(finalOffset / finalLimit) + 1,
+            flats: rows,
+        });
+
     } catch (error) {
-        logger.error(`Error fetching available flats for property ${req.params.propertyId}:`, error);
+        logger.error(`Error fetching all flats for company ${req.user.employee.company_id}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
