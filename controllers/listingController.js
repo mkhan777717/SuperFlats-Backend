@@ -338,44 +338,6 @@ exports.getListingsByProperty = async (req, res) => {
 };
 
 
-// Get available flats for listing for a specific property
-exports.getAvailableFlatsForListing = async (req, res) => {
-    try {
-        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
-            return res.status(401).json({ message: 'Authentication required.' });
-        }
-
-        const company_id = req.user.employee.company_id;
-        const { propertyId } = req.params; // Get propertyId from route params
-
-        // Authorization check: Ensure the property belongs to the user's company
-        const property = await Property.findOne({ where: { id: propertyId, company_id } });
-        if (!property) {
-            return res.status(404).json({ message: 'Property not found or does not belong to your company.' });
-        }
-
-        const availableFlats = await Flat.findAll({
-            where: {
-                company_id: company_id,
-                property_id: propertyId,
-                id: {
-                    [Op.notIn]: db.sequelize.literal(`(SELECT flat_id FROM listings WHERE company_id = ${company_id})`),
-                },
-                flatStatus: 'available',
-            },
-            include: [
-                { model: Property, as: 'property', attributes: ['id', 'name', 'address'] },
-            ],
-            order: [['id', 'DESC']]
-        });
-
-        res.status(200).json(availableFlats);
-    } catch (error) {
-        logger.error('Error fetching available flats for listing:', error);
-        res.status(500).json({ error: 'Internal server error.' });
-    }
-};
-
 // Get a single listing by ID
 exports.getListingById = async (req, res) => {
     try {
