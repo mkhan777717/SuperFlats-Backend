@@ -45,6 +45,11 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 'deposit',
     },
+    status: {
+      type: DataTypes.ENUM('active', 'ended', 'cancelled'),
+      allowNull: false,
+      defaultValue: 'active',
+    },
   }, {
     tableName: 'bookings',
     timestamps: true,
@@ -63,6 +68,12 @@ module.exports = (sequelize) => {
     Booking.belongsTo(models.Tenant, {
       foreignKey: 'tenant_id',
       as: 'tenant'
+    });
+
+    // A Booking has many RentBills
+    Booking.hasMany(models.RentBill, {
+      foreignKey: 'booking_id',
+      as: 'rent_bills',
     });
   };
 

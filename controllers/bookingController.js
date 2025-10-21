@@ -4,7 +4,6 @@ const Booking = db.Booking;
 const Flat = db.Flat;
 const Property = db.Property;
 const Tenant = db.Tenant;
-const Ledger = db.Ledger;
 const { Op } = require('sequelize');
 const { createBookingSchema, updateBookingSchema } = require('../utils/validator');
 
@@ -47,6 +46,7 @@ exports.createBooking = async (req, res) => {
       return res.status(409).json({ message: 'This flat is not available for booking.' });
     }
 
+    // Create the new booking record
     const newBooking = await Booking.create({
       flat_id,
       tenant_id,
@@ -55,19 +55,16 @@ exports.createBooking = async (req, res) => {
       monthly_rent,
       security_amount,
       security_type,
-      status: 'active',
+      status: 'active', // Explicitly set the status
     }, { transaction });
 
-    const [ledger] = await Ledger.findOrCreate({
-      where: { tenant_id },
-      defaults: { tenant_id, balance: 0.00, deposit: 0.00 },
-      transaction,
-    });
-    await ledger.increment('deposit', { by: parseFloat(security_amount), transaction });
+    // Update the flat and tenant statuses
     await flat.update({ flatStatus: 'occupied' }, { transaction });
-    await tenant.update({ status: 'occupied' }, { transaction });
+    await tenant.update({ status: 'occupied' }, { transaction }); // 👈 ADD THIS LINE
+
     await transaction.commit();
 
+    // Fetch the complete booking details to return
     const completeBooking = await Booking.findByPk(newBooking.id, {
       include: [
         { model: Flat, as: 'flat', include: [{ model: Property, as: 'property' }] },
@@ -125,6 +122,7 @@ exports.getAllBookings = async (req, res) => {
       limit = 10,
       offset = 0,
       keywords,
+      status, // 👈 ADD THIS
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
@@ -142,6 +140,11 @@ exports.getAllBookings = async (req, res) => {
         { '$flat.unit_number$': keywordQuery },
         { '$flat.property.name$': keywordQuery },
       ];
+    }
+
+    // 👇 ADD THIS BLOCK
+    if (status && ['active', 'ended', 'cancelled'].includes(status)) {
+      whereClause.status = status;
     }
 
     if (flatType && ['1RK', '1BHK', '2BHK', '3BHK', '3BHK+'].includes(flatType)) {
@@ -202,6 +205,7 @@ exports.getBookingsByProperty = async (req, res) => {
       limit = 10,
       offset = 0,
       keywords,
+      status, // 👈 ADD THIS
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
@@ -227,6 +231,10 @@ exports.getBookingsByProperty = async (req, res) => {
       ];
     }
 
+    // 👇 ADD THIS BLOCK
+    if (status && ['active', 'ended', 'cancelled'].includes(status)) {
+      whereClause.status = status;
+    }
 
     if (flatType && ['1RK', '1BHK', '2BHK', '3BHK', '3BHK+'].includes(flatType)) {
       flatWhereClause.type = flatType;
@@ -284,7 +292,7 @@ exports.updateBooking = async (req, res) => {
     const { id } = req.params;
     const company_id = req.user.employee.company_id;
 
-    const { error } = updateBookingSchema.validate(req.body);
+    const { error, value } = updateBookingSchema.validate(req.body);
     if (error) {
       await transaction.rollback();
       return res.status(400).json({ message: error.details[0].message });
@@ -305,11 +313,37 @@ exports.updateBooking = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this booking.' });
     }
 
+    // --- NEW LOGIC TO HANDLE STATUS CHANGE ---
+    const newStatus = value.status;
+    const oldStatus = booking.status;
 
-    await booking.update(req.body, { transaction });
+    // If status is changing to 'ended' or 'cancelled'
+    if (newStatus && (newStatus === 'ended' || newStatus === 'cancelled') && oldStatus === 'active') {
+      // Free up the flat
+      const flat = await Flat.findByPk(booking.flat_id, { transaction });
+      if (flat) {
+        await flat.update({ flatStatus: 'available' }, { transaction });
+      }
+      // Free up the tenant
+      const tenant = await Tenant.findByPk(booking.tenant_id, { transaction });
+      if (tenant) {
+        await tenant.update({ status: 'available' }, { transaction });
+      }
+    }
+    // --- END OF NEW LOGIC ---
+
+    await booking.update(value, { transaction });
 
     await transaction.commit();
-    res.status(200).json({ message: 'Booking updated successfully.', booking });
+
+    const updatedBooking = await Booking.findByPk(id, {
+      include: [
+        { model: Flat, as: 'flat', include: [{ model: Property, as: 'property' }] },
+        { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] },
+      ],
+    });
+
+    res.status(200).json({ message: 'Booking updated successfully.', booking: updatedBooking });
 
   } catch (error) {
     if (transaction.finished !== 'commit') await transaction.rollback();
@@ -340,11 +374,6 @@ exports.deleteBooking = async (req, res) => {
     if (booking.flat.company_id !== company_id) {
       await transaction.rollback();
       return res.status(403).json({ message: 'You are not authorized to delete this booking.' });
-    }
-
-    const ledger = await Ledger.findOne({ where: { tenant_id: booking.tenant_id }, transaction });
-    if (ledger) {
-      await ledger.decrement('deposit', { by: parseFloat(booking.security_amount), transaction });
     }
 
     const flat = await Flat.findByPk(booking.flat_id, { transaction });

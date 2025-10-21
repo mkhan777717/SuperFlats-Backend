@@ -76,6 +76,10 @@ module.exports = (sequelize) => {
             as: 'ledger',
             onDelete: 'CASCADE',
         });
+        Tenant.hasMany(models.RentBill, {
+            foreignKey: 'tenant_id',
+            as: 'rent_bills',
+        });
     };
 
     return Tenant;

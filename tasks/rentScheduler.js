@@ -2,105 +2,86 @@
 const cron = require('node-cron');
 const db = require('../models');
 const { Op } = require('sequelize');
-const Booking = db.Booking;
-const Ledger = db.Ledger;
-const LedgerEntry = db.LedgerEntry;
 const logger = require('../utils/logger');
 
+const Booking = db.Booking;
+const RentBill = db.RentBill;
+
 /**
- * Creates a monthly rent charge entry for all active bookings.
+ * Creates a monthly rent bill for all active bookings.
  */
-const createMonthlyRentCharge = async () => {
+const generateMonthlyBills = async () => {
     const transaction = await db.sequelize.transaction();
     const now = new Date();
-    const currentMonth = now.toLocaleString('default', { month: 'long' });
-    const currentYear = now.getFullYear();
-    
-    // Define the date range for the current month
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of the current month
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     try {
-        // 1. Find all active bookings
+        // 1. Find all bookings that are active during the current month
         const activeBookings = await Booking.findAll({
             where: {
                 status: 'active',
-                start_date: { [Op.lte]: now },
+                start_date: { [Op.lte]: new Date(now.getFullYear(), now.getMonth() + 1, 0) }, // Started before or during this month
                 [Op.or]: [
                     { end_date: { [Op.is]: null } },
-                    { end_date: { [Op.gte]: now } }
+                    { end_date: { [Op.gte]: currentMonthStart } } // Ends during or after this month
                 ],
             },
-            attributes: ['id', 'tenant_id', 'monthly_rent'],
             transaction,
         });
 
-        let newChargesCount = 0;
+        let newBillsCount = 0;
 
         for (const booking of activeBookings) {
-            const tenantId = booking.tenant_id;
-            const rentAmount = parseFloat(booking.monthly_rent);
-
-            const existingCharge = await LedgerEntry.findOne({
+            // 2. Check if a bill for this month already exists for this booking
+            const existingBill = await RentBill.findOne({
                 where: {
-                    tenant_id: tenantId,
-                    type: 'expense',
-                    category: 'Rent',
-                    date: { [Op.between]: [monthStart, monthEnd] }
+                    booking_id: booking.id,
+                    bill_month: currentMonthStart,
                 },
-                transaction
+                transaction,
             });
 
-            if (existingCharge) {
-                logger.info(`Scheduler: Rent already charged for tenant ${tenantId} for ${currentMonth}. Skipping.`);
-                continue; 
-            }
-
-            const tenantLedger = await Ledger.findOne({
-                where: { tenant_id: tenantId },
-                transaction
-            });
-
-            if (!tenantLedger) {
-                logger.warn(`Scheduler: Ledger not found for tenant ${tenantId}. Skipping rent charge.`);
+            if (existingBill) {
+                logger.info(`Scheduler: Bill for ${currentMonthStr} already exists for booking ${booking.id}. Skipping.`);
                 continue;
             }
 
-            await LedgerEntry.create({
-                tenant_id: tenantId,
-                description: `Monthly Rent Charge (${currentMonth} ${currentYear})`,
-                amount: rentAmount,
-                type: 'expense',
-                category: 'Rent', 
-                date: now.toISOString().split('T')[0],
+            // 3. Create the new rent bill
+            await RentBill.create({
+                booking_id: booking.id,
+                tenant_id: booking.tenant_id,
+                amount: booking.monthly_rent,
+                bill_month: currentMonthStart,
+                is_paid: false,
             }, { transaction });
 
-            let newBalance = parseFloat(tenantLedger.balance) - rentAmount;
-            await tenantLedger.update({ balance: newBalance }, { transaction });
-
-            newChargesCount++;
+            newBillsCount++;
         }
 
         await transaction.commit();
-        logger.info(`Scheduler: Successfully created ${newChargesCount} rent charges for ${currentMonth}.`);
+        logger.info(`Scheduler: Successfully created ${newBillsCount} new rent bills for ${currentMonthStr}.`);
 
     } catch (error) {
         if (transaction.finished !== 'commit') {
             await transaction.rollback();
         }
-        logger.error('CRON JOB ERROR: Failed to create monthly rent charges:', error);
+        logger.error('CRON JOB ERROR: Failed to generate monthly rent bills:', error);
     }
 };
+
 
 /**
  * Schedules the task to run at 00:00 (midnight) on the 1st day of every month.
  */
 exports.startRentScheduler = () => {
-    cron.schedule('0 0 1 * *', () => { 
-        logger.info('Scheduler: Running monthly rent charge job.');
-        createMonthlyRentCharge();
+    // Production schedule: '0 0 1 * *' (1st of every month)
+    // Testing schedule every 5 minutes: '*/5 * * * *'
+    cron.schedule('0 0 1 * *', () => {
+        logger.info('Scheduler: Running monthly rent bill generation job.');
+        generateMonthlyBills();
     }, {
-        timezone: "UTC" 
+        timezone: "UTC"
     });
-    logger.info('Scheduler: Monthly rent charge job started (Runs 1st of month at 00:00 UTC).');
+    logger.info('Scheduler: Monthly rent bill job started (Runs 1st of month at 00:00 UTC).');
 };

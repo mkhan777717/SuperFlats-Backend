@@ -612,7 +612,7 @@ exports.getFlats = async (req, res) => {
 };
 
 // Get available flats for listing for a specific property
-exports.getAvailableFlatsForListing = async (req, res) => {
+exports.getAvailableFlats = async (req, res) => {
     try {
         if (!req.user || !req.user.employee || !req.user.employee.company_id) {
             return res.status(401).json({ message: 'Authentication required.' });

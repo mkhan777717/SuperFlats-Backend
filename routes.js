@@ -11,8 +11,8 @@ const listingController = require('./controllers/listingController');
 const userController = require('./controllers/userController');
 const bookingController = require('./controllers/bookingController');
 const tenantController = require('./controllers/tenantController');
-const ledgerController = require('./controllers/ledgerController');
 const flatController = require('./controllers/flatController');
+const rentController = require('./controllers/rentController'); // 👈 ADD THIS IMPORT
 
 
 // Import middlewares
@@ -66,8 +66,6 @@ router.delete(
   propertyController.deletePhoto
 );
 
-
-
 // -------------------- Listing Routes --------------------
 // NEW Public search endpoint for all active listings
 router.get('/listings/public/search', listingController.publicSearchListings);
@@ -116,12 +114,11 @@ router.delete('/tenants/:tenantId/photo/:photoId', authMiddleware, roleMiddlewar
 router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantsByProperty);
 
 
-
 // -------------------- Flats Routes --------------------
 router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
 router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatsByProperty);
 router.get('/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlats);
-router.get('/properties/:propertyId/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlatsForListing);
+router.get('/properties/:propertyId/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlats);
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
@@ -129,14 +126,14 @@ router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatCon
 router.post('/flats/:flatId/photos', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), flatController.uploadFlatPhoto);
 router.delete('/flats/:flatId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.deleteFlatPhoto);
 
-// -------------------- Ledger Routes (Admin-Only) --------------------
-router.get('/ledgers/company/entries/', authMiddleware, roleMiddleware('admin'), ledgerController.getAllCompanyEntries);
-router.get('/ledgers/tenants/summary', authMiddleware, roleMiddleware('admin'), ledgerController.getAllLedgerSummaries);
-router.get('/ledgers/tenants/:tenantId/summary', authMiddleware, roleMiddleware('admin'), ledgerController.getLedgerSummaryByTenantId);
-router.get('/ledgers/tenants/:tenantId/entries', authMiddleware, roleMiddleware('admin'), ledgerController.getAllEntries);
-router.get('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.getEntryById);
-router.post('/ledgers/tenants/:tenantId/entries', authMiddleware, roleMiddleware('admin'), ledgerController.createEntry);
-router.patch('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.updateEntry);
-router.delete('/ledgers/tenants/:tenantId/entries/:entryId', authMiddleware, roleMiddleware('admin'), ledgerController.deleteEntry);
+// -------------------- Rent Routes (Admin-Only) --------------------
+router.get('/rents/bills', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getAllRentBills);
+router.get('/rents/tenants/:tenantId/history', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getRentHistoryForTenant);
+router.get('/rents/tenants/:tenantId/total-due', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getTotalDueForTenant);
+router.patch('/rents/bills/:billId/pay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsPaid);
+router.patch('/rents/bills/:billId/unpay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsUnpaid);
+router.get('/properties/:propertyId/tenants-with-due', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getTenantsWithDueByProperty);
+
+
 
 module.exports = router;
