@@ -20,7 +20,6 @@ exports.createEmployee = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized. Company ID not found.' });
     }
 
-    // Validate request body against the Joi schema.
     const { error } = employeeCreationSchema.validate(req.body);
     if (error) {
       await transaction.rollback();
@@ -30,7 +29,6 @@ exports.createEmployee = async (req, res) => {
 
     const { name, email, password, role, phone_number } = req.body;
 
-    // Check if a user with the same email already exists
     const userExists = await User.findOne({
       where: { email },
       transaction,
@@ -41,7 +39,6 @@ exports.createEmployee = async (req, res) => {
       return res.status(409).json({ message: `A user with this email already exists.` });
     }
 
-    // Check if a user with the same phone number already exists
     const phoneNumberExists = await User.findOne({
       where: { phone_number },
       transaction,
@@ -52,7 +49,6 @@ exports.createEmployee = async (req, res) => {
       return res.status(409).json({ message: 'This phone number is already registered to an account.' });
     }
 
-    // Hash the password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -63,9 +59,12 @@ exports.createEmployee = async (req, res) => {
       role: role,
       password: hashedPassword,
     }, { transaction });
+
+    await newUser.update({ company_id: companyId }, { transaction });
+
     const newEmployee = await Employee.create({
       user_id: newUser.id,
-      company_id: companyId, 
+      company_id: companyId,
     }, { transaction });
     await transaction.commit();
 
@@ -129,7 +128,6 @@ exports.getEmployeeById = async (req, res) => {
 // Get all employees for a specific company
 exports.getEmployeesByCompany = async (req, res) => {
   try {
-    // Assuming the authenticated user's company_id is available on the request object.
     const companyId = req.user.employee.company_id;
     console.log(companyId);
     if (!companyId) {
@@ -171,14 +169,12 @@ exports.updateEmployeeRole = async (req, res) => {
       return res.status(404).json({ message: 'Employee not found.' });
     }
 
-    // Find the associated user and update their role
     const user = await User.findByPk(employee.user_id, { transaction });
     if (!user) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Associated user not found.' });
     }
 
-    // If downgrading the role of an admin, ensure there is at least one other admin left.
     if (user.role === 'admin' && role !== 'admin') {
       const otherAdminsCount = await Employee.count({
         include: [{
@@ -246,12 +242,8 @@ exports.deleteEmployee = async (req, res) => {
       await deleteFile(user.profile_image, 'profile image');
     }
 
-    // Delete the employee record
     await employee.destroy({ transaction });
-
-    // Delete the associated user record
     await user.destroy({ transaction });
-
     await transaction.commit();
     logger.info(`Employee ID ${id} and associated user deleted successfully.`);
     res.status(200).json({ message: 'Employee and associated user deleted successfully.' });

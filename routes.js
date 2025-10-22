@@ -12,7 +12,7 @@ const userController = require('./controllers/userController');
 const bookingController = require('./controllers/bookingController');
 const tenantController = require('./controllers/tenantController');
 const flatController = require('./controllers/flatController');
-const rentController = require('./controllers/rentController'); // 👈 ADD THIS IMPORT
+const rentController = require('./controllers/rentController'); 
 
 
 // Import middlewares
@@ -82,7 +82,12 @@ router.post('/appointments', authMiddleware, roleMiddleware('client'), appointme
 router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), appointmentController.updateAppointment);
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
-router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment); // Changed to allow agents to delete
+router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment);
+router.patch(
+  '/appointments/:id/feedback',
+  authMiddleware,
+  appointmentController.updateAppointmentFeedback
+);
 
 // -------------------- Employee Routes --------------------
 // Updated route to get all employees for the authenticated user's company

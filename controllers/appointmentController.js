@@ -5,7 +5,7 @@ const Appointment = db.Appointment;
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
-const Flat = db.Flat; // 👈 ADD THIS LINE
+const Flat = db.Flat;
 const { createAppointmentSchema, patchAppointmentSchema } = require('../utils/validator');
 
 // Create a new appointment with 'non_assigned' status
@@ -18,17 +18,14 @@ exports.createAppointment = async (req, res) => {
     const { listing_id, scheduled_at } = value;
     const userId = req.user.id;
 
-    // Check if the listing exists and is active
     const listing = await Listing.findByPk(listing_id);
     if (!listing || listing.status !== 'active') {
       logger.warn(`Attempted to create appointment on non-existent or inactive listing ID: ${listing_id}`);
       return res.status(404).json({ message: 'Listing not found or is not active.' });
     }
 
-    // Get the company_id from the listing itself
     const companyId = listing.company_id;
 
-    // Check for a scheduling conflict for the same listing
     const existingAppointment = await Appointment.findOne({
       where: {
         listing_id,
@@ -48,7 +45,7 @@ exports.createAppointment = async (req, res) => {
     const newAppointment = await Appointment.create({
       listing_id,
       user_id: userId,
-      company_id: companyId, // Associate the appointment with the listing's company
+      company_id: companyId, 
       scheduled_at,
       status: 'pending',
     });
@@ -62,14 +59,7 @@ exports.createAppointment = async (req, res) => {
   }
 };
 
-// -------------------- CONSOLIDATED UPDATE FUNCTION --------------------
 
-/**
- * Updates an appointment. Can handle changes to listing, time, assigned employee, and status.
- * Access is role-based:
- * - Admins/Agents can modify all fields.
- * - Clients can only cancel their own appointments.
- */
 exports.updateAppointment = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
@@ -77,22 +67,19 @@ exports.updateAppointment = async (req, res) => {
     const { id: userId, role: userRole, employee } = req.user;
     const userCompanyId = employee ? employee.company_id : null;
 
-    // 1. Validate request body
     const { error, value } = patchAppointmentSchema.validate(req.body);
     if (error) {
       await transaction.rollback();
       return res.status(400).json({ message: error.details[0].message });
     }
-    const { listing_id, scheduled_at, employee_id, status } = value;
+    const { listing_id, scheduled_at, employee_id, status, feedback } = value;
 
-    // 2. Find the appointment
     const appointment = await Appointment.findByPk(id, { transaction });
     if (!appointment) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Appointment not found.' });
     }
 
-    // 3. Authorization Checks
     if (userRole === 'client') {
       if (appointment.user_id !== userId) {
         await transaction.rollback();
@@ -106,16 +93,14 @@ exports.updateAppointment = async (req, res) => {
         await transaction.rollback();
         return res.status(403).json({ message: 'You are not permitted to change these appointment details.' });
       }
-    } else { // For 'admin' and 'agent'
+    } else { 
       if (appointment.company_id !== userCompanyId) {
         await transaction.rollback();
         return res.status(403).json({ message: 'You are not authorized to modify this appointment.' });
       }
     }
 
-    // 4. Logic for specific field updates (only for admin/agent)
     if (userRole === 'admin' || userRole === 'agent') {
-      // Check new listing if provided
       if (listing_id) {
         const listing = await Listing.findOne({ where: { id: listing_id, company_id: userCompanyId }, transaction });
         if (!listing || listing.status !== 'active') {
@@ -125,7 +110,6 @@ exports.updateAppointment = async (req, res) => {
         appointment.listing_id = listing_id;
       }
 
-      // Check for scheduling conflicts
       if (scheduled_at || listing_id) {
         const conflict = await Appointment.findOne({
           where: {
@@ -143,15 +127,17 @@ exports.updateAppointment = async (req, res) => {
       }
       if (scheduled_at) appointment.scheduled_at = scheduled_at;
 
-      // Assign employee
       if (employee_id !== undefined) {
         appointment.employee_id = employee_id;
       }
     }
 
-    // 5. Update status (allowed for all authorized roles)
     if (status) {
       appointment.status = status;
+    }
+
+    if (feedback !== undefined) {
+      appointment.feedback = feedback;
     }
 
     await appointment.save({ transaction });
@@ -162,7 +148,7 @@ exports.updateAppointment = async (req, res) => {
         {
           model: Listing,
           as: 'listing',
-          include: [ // 👇 CORRECTED NESTED INCLUDE
+          include: [
             {
               model: Flat,
               as: 'flat',
@@ -187,39 +173,70 @@ exports.updateAppointment = async (req, res) => {
   }
 };
 
+// Get appointments for the currently authenticated user
+
 exports.getAppointments = async (req, res) => {
   try {
-    const { id: userId, role: userRole, company_id: userCompanyId } = req.user;
-    const { employeeId } = req.query;
+    const { id: userId, role: userRole, employee } = req.user;
+    const userCompanyId = employee ? employee.company_id : null;
+    console.log('Fetching appointments for user:', userId, 'with role:', userRole, 'and company:', userCompanyId);
+    const {
+      limit = 20,
+      offset = 0,
+      employeeId,
+      status,
+    } = req.query;
+
+    const finalLimit = parseInt(limit, 10);
+    const finalOffset = parseInt(offset, 10);
 
     let whereClause = {};
+
     if (userRole === 'client') {
       whereClause = { user_id: userId };
     } else if (userRole === 'agent') {
-      whereClause = { employee_id: userId };
+      whereClause = { employee_id: employee.id };
     } else {
       whereClause = { company_id: userCompanyId };
     }
+
     if (employeeId && (userRole === 'admin' || userRole === 'agent')) {
       whereClause.employee_id = employeeId;
     }
 
-    const appointments = await Appointment.findAll({
+
+    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+
+    if (status) {
+      const lowerStatus = status.toLowerCase();
+
+      if (lowerStatus === 'upcoming') {
+        whereClause.status = { [Op.ne]: 'completed' };
+      } else if (validStatuses.includes(lowerStatus)) {
+        whereClause.status = lowerStatus;
+      }
+    }
+
+    const { count, rows } = await Appointment.findAndCountAll({
       where: whereClause,
       include: [
         { model: db.Listing, as: 'listing' },
         { model: db.User, as: 'user' },
         { model: db.User, as: 'employee' },
       ],
-      order: [['scheduled_at', 'DESC']]
+      order: [['scheduled_at', 'DESC']],
+
+      limit: finalLimit,
+      offset: finalOffset,
     });
 
-    if (!appointments.length) {
-      logger.info(`No appointments found for the applied criteria.`);
-      return res.status(200).json([]);
-    }
 
-    res.status(200).json(appointments);
+    res.status(200).json({
+      totalItems: count,
+      totalPages: Math.ceil(count / finalLimit),
+      currentPage: Math.floor(finalOffset / finalLimit) + 1,
+      appointments: rows,
+    });
 
   } catch (error) {
     logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
@@ -243,7 +260,7 @@ exports.getAppointmentById = async (req, res) => {
         {
           model: Listing,
           as: 'listing',
-          include: [ // 👇 CORRECTED NESTED INCLUDE
+          include: [ 
             {
               model: Flat,
               as: 'flat',
@@ -303,6 +320,49 @@ exports.deleteAppointment = async (req, res) => {
 
   } catch (error) {
     logger.error(`Error deleting appointment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+/**
+ * Updates feedback for an appointment.
+ * Only the client who booked the appointment or an admin/agent can update feedback.
+ */
+exports.updateAppointmentFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { feedback } = req.body;
+    const { id: userId, role: userRole, employee } = req.user;
+    const userCompanyId = employee ? employee.company_id : null;
+
+    if (!feedback || typeof feedback !== 'string') {
+      return res.status(400).json({ message: 'Feedback is required and must be a string.' });
+    }
+
+    const appointment = await db.Appointment.findByPk(id);
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found.' });
+    }
+
+    // Authorization: client who booked, or admin/agent from same company
+    if (userRole === 'client') {
+      if (appointment.user_id !== userId) {
+        return res.status(403).json({ message: 'You are not authorized to update feedback for this appointment.' });
+      }
+    } else if (userRole === 'admin' || userRole === 'agent') {
+      if (appointment.company_id !== userCompanyId) {
+        return res.status(403).json({ message: 'You are not authorized to update feedback for this appointment.' });
+      }
+    } else {
+      return res.status(403).json({ message: 'You are not authorized to update feedback.' });
+    }
+
+    appointment.feedback = feedback;
+    await appointment.save();
+
+    res.status(200).json({ message: 'Feedback updated successfully.', appointment });
+  } catch (error) {
+    logger.error(`Error updating feedback for appointment ${req.params.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };

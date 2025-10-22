@@ -32,7 +32,6 @@ exports.createTenant = async (req, res) => {
 
     const { name, phone_number, property_id } = value;
 
-    // Verify the property exists and belongs to the same company
     const property = await Property.findOne({ where: { id: property_id, company_id: companyId } });
     if (!property) {
       await transaction.rollback();
@@ -89,7 +88,7 @@ exports.getTenantById = async (req, res) => {
         company_id: companyId
       },
       include: [
-        { model: Property, as: 'property' }, // Include property details
+        { model: Property, as: 'property' }, 
         {
           model: Booking,
           as: 'bookings',
@@ -140,7 +139,7 @@ exports.getAllTenants = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      keywords, // Reverted to 'keywords' as requested
+      keywords, 
       status,
       propertyId,
       sortBy = 'created_at',
@@ -172,7 +171,6 @@ exports.getAllTenants = async (req, res) => {
     const validSortColumns = ['created_at', 'name'];
     const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
     const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    // 👇 UPDATED: Explicitly specify the model for sorting
     const order = [[finalSortBy, finalSortOrder]];
 
     const finalLimit = parseInt(limit, 10);
@@ -182,7 +180,7 @@ exports.getAllTenants = async (req, res) => {
       where: finalWhere,
 
       include: [
-        { model: Property, as: 'property', attributes: ['id', 'name'] }, // Include property details
+        { model: Property, as: 'property', attributes: ['id', 'name'] }, 
         {
           model: Photo,
           as: 'photos',
@@ -232,7 +230,6 @@ exports.getTenantsByProperty = async (req, res) => {
       return res.status(401).json({ message: 'User is not associated with a company.' });
     }
 
-    // Verify property exists and belongs to the company for authorization
     const property = await Property.findOne({ where: { id: propertyId, company_id: companyId } });
     if (!property) {
       return res.status(404).json({ message: 'Property not found or does not belong to your company.' });
@@ -372,7 +369,6 @@ exports.getAvailableTenants = async (req, res) => {
 
     const { propertyId } = req.params;
 
-    // Authorization: Verify the property exists and belongs to the user's company
     const property = await Property.findOne({ where: { id: propertyId, company_id: company_id } });
     if (!property) {
       return res.status(404).json({ message: 'Property not found or you are not authorized to view it.' });
@@ -383,7 +379,7 @@ exports.getAvailableTenants = async (req, res) => {
       where: {
         status: 'available',
         company_id: company_id,
-        property_id: propertyId, // Filter by the specific property
+        property_id: propertyId, 
       },
       order: [['name', 'ASC']],
     });
@@ -473,7 +469,6 @@ exports.deleteTenantphotos = async (req, res) => {
       return res.status(404).json({ message: 'ID proof document not found.' });
     }
 
-    // Security & Authorization Check
     if (photo.imageable_type !== 'Tenant' || photo.imageable_id !== parseInt(tenantId, 10)) {
       await transaction.rollback();
       return res.status(403).json({ message: 'Document does not belong to the specified tenant.' });

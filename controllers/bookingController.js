@@ -46,7 +46,6 @@ exports.createBooking = async (req, res) => {
       return res.status(409).json({ message: 'This flat is not available for booking.' });
     }
 
-    // Create the new booking record
     const newBooking = await Booking.create({
       flat_id,
       tenant_id,
@@ -55,16 +54,14 @@ exports.createBooking = async (req, res) => {
       monthly_rent,
       security_amount,
       security_type,
-      status: 'active', // Explicitly set the status
+      status: 'active', 
     }, { transaction });
 
-    // Update the flat and tenant statuses
     await flat.update({ flatStatus: 'occupied' }, { transaction });
-    await tenant.update({ status: 'occupied' }, { transaction }); // 👈 ADD THIS LINE
+    await tenant.update({ status: 'occupied' }, { transaction });
 
     await transaction.commit();
 
-    // Fetch the complete booking details to return
     const completeBooking = await Booking.findByPk(newBooking.id, {
       include: [
         { model: Flat, as: 'flat', include: [{ model: Property, as: 'property' }] },
@@ -122,7 +119,7 @@ exports.getAllBookings = async (req, res) => {
       limit = 10,
       offset = 0,
       keywords,
-      status, // 👈 ADD THIS
+      status, 
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
@@ -142,7 +139,6 @@ exports.getAllBookings = async (req, res) => {
       ];
     }
 
-    // 👇 ADD THIS BLOCK
     if (status && ['active', 'ended', 'cancelled'].includes(status)) {
       whereClause.status = status;
     }
@@ -205,21 +201,20 @@ exports.getBookingsByProperty = async (req, res) => {
       limit = 10,
       offset = 0,
       keywords,
-      status, // 👈 ADD THIS
+      status,
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
 
     } = req.query;
 
-    // Authorization: Verify the property exists and belongs to the user's company
     const property = await Property.findOne({ where: { id: propertyId, company_id: company_id } });
     if (!property) {
       return res.status(404).json({ message: 'Property not found or you are not authorized to view it.' });
     }
 
     const whereClause = {};
-    const flatWhereClause = { property_id: propertyId }; // Hard-set the property ID
+    const flatWhereClause = { property_id: propertyId }; 
 
     if (keywords) {
       const keywordQuery = { [Op.like]: `%${keywords}%` };
@@ -231,7 +226,6 @@ exports.getBookingsByProperty = async (req, res) => {
       ];
     }
 
-    // 👇 ADD THIS BLOCK
     if (status && ['active', 'ended', 'cancelled'].includes(status)) {
       whereClause.status = status;
     }
@@ -313,24 +307,19 @@ exports.updateBooking = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this booking.' });
     }
 
-    // --- NEW LOGIC TO HANDLE STATUS CHANGE ---
     const newStatus = value.status;
     const oldStatus = booking.status;
 
-    // If status is changing to 'ended' or 'cancelled'
     if (newStatus && (newStatus === 'ended' || newStatus === 'cancelled') && oldStatus === 'active') {
-      // Free up the flat
       const flat = await Flat.findByPk(booking.flat_id, { transaction });
       if (flat) {
         await flat.update({ flatStatus: 'available' }, { transaction });
       }
-      // Free up the tenant
       const tenant = await Tenant.findByPk(booking.tenant_id, { transaction });
       if (tenant) {
         await tenant.update({ status: 'available' }, { transaction });
       }
     }
-    // --- END OF NEW LOGIC ---
 
     await booking.update(value, { transaction });
 

@@ -6,8 +6,7 @@ const RentBill = db.RentBill;
 const Tenant = db.Tenant;
 const Booking = db.Booking;
 const Property = db.Property;
-const Flat = db.Flat; // 👈 ADD THIS IMPORT
-
+const Flat = db.Flat; 
 /**
  * Marks a specific rent bill as paid.
  */
@@ -87,7 +86,6 @@ exports.getRentHistoryForTenant = async (req, res) => {
         const { limit = 10, offset = 0 } = req.query;
         const company_id = req.user.employee.company_id;
 
-        // Authorization check
         const tenant = await Tenant.findOne({ where: { id: tenantId, company_id } });
         if (!tenant) {
             return res.status(404).json({ message: 'Tenant not found.' });
@@ -96,7 +94,6 @@ exports.getRentHistoryForTenant = async (req, res) => {
         const finalLimit = parseInt(limit);
         const finalOffset = parseInt(offset);
 
-        // Efficiently calculate total due in a separate query
         const totalDue = await RentBill.sum('amount', {
             where: {
                 tenant_id: tenantId,
@@ -104,7 +101,6 @@ exports.getRentHistoryForTenant = async (req, res) => {
             }
         });
 
-        // Fetch the paginated history
         const { count, rows } = await RentBill.findAndCountAll({
             where: { tenant_id: tenantId },
             order: [['bill_month', 'DESC']],
@@ -135,13 +131,11 @@ exports.getTotalDueForTenant = async (req, res) => {
         const { tenantId } = req.params;
         const company_id = req.user.employee.company_id;
 
-        // Authorization check: Ensure the tenant exists and belongs to the company
         const tenant = await Tenant.findOne({ where: { id: tenantId, company_id } });
         if (!tenant) {
             return res.status(404).json({ message: 'Tenant not found or you are not authorized.' });
         }
 
-        // Use Sequelize's sum aggregation for efficiency
         const totalDue = await RentBill.sum('amount', {
             where: {
                 tenant_id: tenantId,
@@ -149,7 +143,6 @@ exports.getTotalDueForTenant = async (req, res) => {
             }
         });
 
-        // The 'sum' can return null if there are no matching rows, so default to 0
         res.status(200).json({
             tenant_id: parseInt(tenantId),
             total_due: totalDue || 0
@@ -171,7 +164,6 @@ exports.getTenantsWithDueByProperty = async (req, res) => {
         const company_id = req.user.employee.company_id;
         const { limit = 10, offset = 0 } = req.query;
 
-        // Authorization check
         const property = await Property.findOne({ where: { id: propertyId, company_id } });
         if (!property) {
             return res.status(404).json({ message: 'Property not found or you are not authorized.' });
@@ -185,7 +177,6 @@ exports.getTenantsWithDueByProperty = async (req, res) => {
                 'id',
                 'name',
                 'phone_number',
-                // Use COALESCE to ensure total_due is 0 instead of NULL for tenants with no unpaid bills
                 [db.sequelize.fn('COALESCE', db.sequelize.fn('SUM', db.sequelize.col('rent_bills.amount')), 0), 'total_due']
             ],
             where: {
@@ -197,17 +188,15 @@ exports.getTenantsWithDueByProperty = async (req, res) => {
                 as: 'rent_bills',
                 attributes: [],
                 where: { is_paid: false },
-                // Use `required: false` to perform a LEFT JOIN, including tenants with no unpaid bills
                 required: false
             }],
             group: ['Tenant.id'],
-            order: [[db.sequelize.col('total_due'), 'DESC']], // Order by the calculated total_due
+            order: [[db.sequelize.col('total_due'), 'DESC']], 
             limit: finalLimit,
             offset: finalOffset,
             subQuery: false
         });
 
-        // findAndCountAll with `group` returns a count of groups, which is what we need for totalItems.
         const totalItems = count.length;
 
         res.status(200).json({
@@ -235,14 +224,14 @@ exports.getAllRentBills = async (req, res) => {
             offset = 0,
             is_paid,
             propertyId,
-            month, // e.g., '2025-11'
+            month,           
             sortBy = 'bill_month',
             sortOrder = 'DESC'
         } = req.query;
 
         const whereClause = {};
         const tenantWhereClause = { company_id };
-        const flatWhereClause = {}; // This is for the Flat model
+        const flatWhereClause = {}; 
 
         if (is_paid !== undefined) {
             whereClause.is_paid = is_paid === 'true';
@@ -255,7 +244,7 @@ exports.getAllRentBills = async (req, res) => {
         }
 
         if (propertyId) {
-            flatWhereClause.property_id = propertyId; // Apply propertyId filter here
+            flatWhereClause.property_id = propertyId;
         }
 
         const { count, rows } = await RentBill.findAndCountAll({
@@ -272,7 +261,7 @@ exports.getAllRentBills = async (req, res) => {
                     as: 'booking',
                     attributes: ['id'],
                     required: true,
-                    include: [{ // 👇 RE-ADD THIS NESTED INCLUDE
+                    include: [{ 
                         model: Flat,
                         as: 'flat',
                         where: flatWhereClause,

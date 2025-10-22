@@ -21,7 +21,7 @@ module.exports = (sequelize) => {
         },
         employee_id: {
             type: DataTypes.INTEGER,
-            allowNull: true, // This can be null until an employee is assigned
+            allowNull: true,
             references: {
                 model: 'users',
                 key: 'id',
@@ -36,8 +36,12 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: 'non_assigned',
             validate: {
-                isIn: [[ 'pending', 'confirmed', 'cancelled', 'completed']],
+                isIn: [['pending', 'confirmed', 'cancelled', 'completed']],
             },
+        },
+        feedback: {
+            type: DataTypes.TEXT,
+            allowNull: true, 
         },
         created_at: {
             type: DataTypes.DATE,
@@ -80,7 +84,7 @@ module.exports = (sequelize) => {
         Appointment.belongsTo(models.User, {
             foreignKey: 'employee_id',
             as: 'employee',
-            onDelete: 'SET NULL', // Set to null if the employee is deleted
+            onDelete: 'SET NULL',
         });
     };
 

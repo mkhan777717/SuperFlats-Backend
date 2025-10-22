@@ -38,6 +38,7 @@ const patchAppointmentSchema = Joi.object({
   scheduled_at: Joi.date().iso().optional(),
   employee_id: Joi.number().integer().positive().optional().allow(null), // Allow un-assigning
   status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').optional(),
+  feedback: Joi.string().max(2000).optional(),
 }).min(1).messages({
   'object.min': 'At least one field to update must be provided.'
 });
@@ -106,7 +107,7 @@ const updateBookingSchema = Joi.object({
   monthly_rent: Joi.number().precision(2).positive().optional(),
   security_amount: Joi.number().precision(2).min(0).optional(),
   security_type: Joi.string().valid('lease', 'deposit').optional(),
-  status: Joi.string().valid('active', 'ended', 'cancelled').optional(), // 👈 THIS LINE IS KEY
+  status: Joi.string().valid('active', 'ended', 'cancelled').optional(), 
 }).min(1);
 
 
