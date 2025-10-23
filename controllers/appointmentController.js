@@ -45,7 +45,7 @@ exports.createAppointment = async (req, res) => {
     const newAppointment = await Appointment.create({
       listing_id,
       user_id: userId,
-      company_id: companyId, 
+      company_id: companyId,
       scheduled_at,
       status: 'pending',
     });
@@ -93,7 +93,7 @@ exports.updateAppointment = async (req, res) => {
         await transaction.rollback();
         return res.status(403).json({ message: 'You are not permitted to change these appointment details.' });
       }
-    } else { 
+    } else {
       if (appointment.company_id !== userCompanyId) {
         await transaction.rollback();
         return res.status(403).json({ message: 'You are not authorized to modify this appointment.' });
@@ -191,6 +191,7 @@ exports.getAppointments = async (req, res) => {
     const finalOffset = parseInt(offset, 10);
 
     let whereClause = {};
+    let scheduledAtOrder = 'ASC'; // 💡 Default to ASC (soonest upcoming first)
 
     if (userRole === 'client') {
       whereClause = { user_id: userId };
@@ -212,8 +213,16 @@ exports.getAppointments = async (req, res) => {
 
       if (lowerStatus === 'upcoming') {
         whereClause.status = { [Op.ne]: 'completed' };
+        scheduledAtOrder = 'ASC'; // Upcoming should be ASC (soonest first)
       } else if (validStatuses.includes(lowerStatus)) {
         whereClause.status = lowerStatus;
+
+        // 💡 CRITICAL CHANGE: If fetching completed/cancelled, sort DESC (newest first)
+        if (lowerStatus === 'completed' || lowerStatus === 'cancelled') {
+          scheduledAtOrder = 'DESC';
+        } else {
+          scheduledAtOrder = 'ASC'; // Pending/Confirmed are typically upcoming
+        }
       }
     }
 
@@ -224,7 +233,9 @@ exports.getAppointments = async (req, res) => {
         { model: db.User, as: 'user' },
         { model: db.User, as: 'employee' },
       ],
-      order: [['scheduled_at', 'DESC']],
+
+      // 💡 CRITICAL FIX: Use the dynamic order direction
+      order: [['scheduled_at', scheduledAtOrder]],
 
       limit: finalLimit,
       offset: finalOffset,
@@ -242,6 +253,7 @@ exports.getAppointments = async (req, res) => {
     logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
     res.status(500).json({ error: 'Internal server error.' });
   }
+
 };
 
 // Get a single appointment by ID
@@ -260,7 +272,7 @@ exports.getAppointmentById = async (req, res) => {
         {
           model: Listing,
           as: 'listing',
-          include: [ 
+          include: [
             {
               model: Flat,
               as: 'flat',
