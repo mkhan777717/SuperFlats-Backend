@@ -4,6 +4,7 @@ const Booking = db.Booking;
 const Flat = db.Flat;
 const Property = db.Property;
 const Tenant = db.Tenant;
+const Photo = db.Photo;
 const { Op } = require('sequelize');
 const { createBookingSchema, updateBookingSchema } = require('../utils/validator');
 
@@ -54,7 +55,7 @@ exports.createBooking = async (req, res) => {
       monthly_rent,
       security_amount,
       security_type,
-      status: 'active', 
+      status: 'active',
     }, { transaction });
 
     await flat.update({ flatStatus: 'occupied' }, { transaction });
@@ -119,7 +120,7 @@ exports.getAllBookings = async (req, res) => {
       limit = 10,
       offset = 0,
       keywords,
-      status, 
+      status,
       flatType,
       sortBy = 'start_date',
       sortOrder = 'DESC'
@@ -214,7 +215,7 @@ exports.getBookingsByProperty = async (req, res) => {
     }
 
     const whereClause = {};
-    const flatWhereClause = { property_id: propertyId }; 
+    const flatWhereClause = { property_id: propertyId };
 
     if (keywords) {
       const keywordQuery = { [Op.like]: `%${keywords}%` };
@@ -383,6 +384,97 @@ exports.deleteBooking = async (req, res) => {
   } catch (error) {
     if (transaction.finished !== 'commit') await transaction.rollback();
     logger.error(`Error deleting booking ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+/**
+ * Fetches a list of properties with aggregated booking statistics (active, ending soon).
+ */
+exports.getPropertiesBookingSummary = async (req, res) => {
+  try {
+    const company_id = req.user.employee.company_id;
+
+    // Define the date check condition using a single, necessary raw literal.
+    // This literal evaluates to 1 (true) or NULL (false).
+    const endingSoonCondition = db.sequelize.literal(`
+        CASE 
+            WHEN \`flats->booking\`.\`status\` = 'active' 
+            AND \`flats->booking\`.\`end_date\` <= DATE_ADD(CURDATE(), INTERVAL 2 MONTH)
+            AND \`flats->booking\`.\`end_date\` > CURDATE()
+            THEN 1 ELSE NULL 
+        END
+    `);
+
+    const propertiesSummary = await Property.findAll({
+      where: { company_id: company_id },
+      attributes: [
+        'id',
+        'name',
+        'address',
+        'description',
+        'is_managed',
+
+        // 1. ACTIVE BOOKINGS COUNT (Pure ORM conditional COUNT)
+        [
+          db.sequelize.fn('COUNT', db.sequelize.where(db.sequelize.col('flats->booking.status'), 'active')),
+          'activeBookingsCount'
+        ],
+
+        // 2. ENDING SOON COUNT (Conditional COUNT using the necessary literal for date math)
+        [
+          db.sequelize.fn('COUNT', endingSoonCondition),
+          'endingSoonCount'
+        ],
+
+        // 3. TOTAL BOOKINGS COUNT (Pure ORM COUNT on column)
+        [
+          db.sequelize.fn('COUNT', db.sequelize.col('flats->booking.id')),
+          'totalBookingsCount'
+        ]
+      ],
+      include: [
+        {
+          model: Photo,
+          as: 'photos',
+
+          required: false,
+        },
+
+        {
+          model: Flat,
+          as: 'flats',
+          attributes: [],
+          include: [{
+            model: Booking,
+            as: 'booking',
+            attributes: [],
+            required: false,
+            where: { status: { [Op.in]: ['active', 'ended', 'cancelled'] } }
+          }],
+          required: false,
+        }
+      ],
+      group: ['Property.id', 'photos.id'],
+      order: [['name', 'ASC']]
+    });
+
+    const formattedResult = propertiesSummary.map(property => ({
+      id: property.id,
+      name: property.name,
+      address: property.address,
+      description: property.description,
+      isManaged: property.is_managed,
+      photos: property.photos,
+      activeBookingsCount: parseInt(property.dataValues.activeBookingsCount, 10) || 0,
+      endingSoonCount: parseInt(property.dataValues.endingSoonCount, 10) || 0,
+      totalBookingsCount: parseInt(property.dataValues.totalBookingsCount, 10) || 0,
+    }));
+
+    res.status(200).json({ properties: formattedResult });
+
+  } catch (error) {
+    logger.error('Error fetching property booking summary:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };

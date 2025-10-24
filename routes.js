@@ -12,7 +12,7 @@ const userController = require('./controllers/userController');
 const bookingController = require('./controllers/bookingController');
 const tenantController = require('./controllers/tenantController');
 const flatController = require('./controllers/flatController');
-const rentController = require('./controllers/rentController'); 
+const rentController = require('./controllers/rentController');
 
 
 // Import middlewares
@@ -104,6 +104,12 @@ router.get('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bo
 router.patch('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.updateBooking);
 router.delete('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.deleteBooking);
 router.get('/properties/:propertyId/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getBookingsByProperty);
+router.get(
+  '/bookings/summary/properties',
+  authMiddleware,
+  roleMiddleware('admin', 'agent'),
+  bookingController.getPropertiesBookingSummary 
+);
 
 
 // -------------------- Tenant Routes --------------------
