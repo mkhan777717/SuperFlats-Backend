@@ -391,12 +391,10 @@ exports.deleteBooking = async (req, res) => {
 /**
  * Fetches a list of properties with aggregated booking statistics (active, ending soon).
  */
-exports.getPropertiesBookingSummary = async (req, res) => {
+exports.getPropertiesSummary = async (req, res) => {
   try {
     const company_id = req.user.employee.company_id;
 
-    // Define the date check condition using a single, necessary raw literal.
-    // This literal evaluates to 1 (true) or NULL (false).
     const endingSoonCondition = db.sequelize.literal(`
         CASE 
             WHEN \`flats->booking\`.\`status\` = 'active' 
@@ -411,23 +409,16 @@ exports.getPropertiesBookingSummary = async (req, res) => {
       attributes: [
         'id',
         'name',
-        'address',
-        'description',
-        'is_managed',
-
-        // 1. ACTIVE BOOKINGS COUNT (Pure ORM conditional COUNT)
         [
           db.sequelize.fn('COUNT', db.sequelize.where(db.sequelize.col('flats->booking.status'), 'active')),
           'activeBookingsCount'
         ],
 
-        // 2. ENDING SOON COUNT (Conditional COUNT using the necessary literal for date math)
         [
           db.sequelize.fn('COUNT', endingSoonCondition),
           'endingSoonCount'
         ],
 
-        // 3. TOTAL BOOKINGS COUNT (Pure ORM COUNT on column)
         [
           db.sequelize.fn('COUNT', db.sequelize.col('flats->booking.id')),
           'totalBookingsCount'
@@ -450,7 +441,6 @@ exports.getPropertiesBookingSummary = async (req, res) => {
             as: 'booking',
             attributes: [],
             required: false,
-            where: { status: { [Op.in]: ['active', 'ended', 'cancelled'] } }
           }],
           required: false,
         }

@@ -1,7 +1,8 @@
 const db = require('../models');
 const logger = require('../utils/logger');
-const { Op } = require('sequelize');
+const { Op, where } = require('sequelize');
 const { createListingSchema, updateListingSchema } = require('../utils/validator');
+const { required } = require('joi');
 const Listing = db.Listing;
 const Property = db.Property;
 const User = db.User;
@@ -28,29 +29,24 @@ exports.publicSearchListings = async (req, res) => {
             offset = 0,
         } = req.query;
 
-        // --- Build Where Clauses ---
-        const listingWhere = { status: 'active' }; // Core requirement: only active listings
+        const listingWhere = { status: 'active' }; 
         const propertyWhere = {};
         const flatWhere = {};
 
-        // Rent filter
         if (min_rent || max_rent) {
             listingWhere.monthly_rent = {};
             if (min_rent) listingWhere.monthly_rent[Op.gte] = parseFloat(min_rent);
             if (max_rent) listingWhere.monthly_rent[Op.lte] = parseFloat(max_rent);
         }
 
-        // Location filter
         if (city) {
             propertyWhere.city = { [Op.like]: `%${city}%` };
         }
 
-        // Flat type filter
         if (type) {
             flatWhere.type = type;
         }
 
-        // Keyword search across multiple fields
         if (keywords) {
             const keywordQuery = { [Op.like]: `%${keywords}%` };
             listingWhere[Op.or] = [
@@ -62,9 +58,8 @@ exports.publicSearchListings = async (req, res) => {
             ];
         }
 
-        // --- Sorting ---
         const validSortColumns = ['created_at', 'monthly_rent'];
-        const reqSortBy = sort_by || sortBy || 'created_at'; // Use whichever is provided, default to created_at
+        const reqSortBy = sort_by || sortBy || 'created_at'; 
         const reqSortOrder = sortOrder || sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -73,7 +68,6 @@ exports.publicSearchListings = async (req, res) => {
             ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
             : [[finalSortBy, finalSortOrder]];
 
-        // --- Database Query ---
         const { count, rows } = await Listing.findAndCountAll({
             where: listingWhere,
             include: [
@@ -198,7 +192,6 @@ exports.getMyListings = async (req, res) => {
             offset = 0
         } = req.query;
 
-        // --- Build Where Clause ---
         const whereClause = { company_id };
 
         if (keywords) {
@@ -210,9 +203,8 @@ exports.getMyListings = async (req, res) => {
             ];
         }
 
-        // --- Build Order Clause ---
         const validSortColumns = ['created_at', 'monthly_rent'];
-        const reqSortBy = sort_by || sortBy || 'created_at'; // Use whichever is provided, default to created_at
+        const reqSortBy = sort_by || sortBy || 'created_at'; 
         const reqSortOrder = sortOrder || sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -266,7 +258,6 @@ exports.getListingsByProperty = async (req, res) => {
             return res.status(403).json({ message: 'User is not associated with a company.' });
         }
 
-        // Authorization: Check if the property exists and belongs to the user's company
         const property = await Property.findOne({ where: { id: propertyId, company_id } });
         if (!property) {
             return res.status(404).json({ message: 'Property not found or you are not authorized to view its listings.' });
@@ -443,6 +434,104 @@ exports.deleteListing = async (req, res) => {
     } catch (error) {
         if (transaction.finished !== 'commit') await transaction.rollback();
         logger.error(`Error deleting listing ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+
+/**
+ * Retrieves a summary of all properties for the authenticated company,
+ * including counts of active, non-inactive, and total listings.
+ */
+exports.getPropertiesSummary = async (req, res) => {
+    try {
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            return res.status(403).json({ message: 'User is not associated with a company.' });
+        }
+
+        const company_id = req.user.employee.company_id;
+
+        const propertiesSummary = await Property.findAll({
+            where: { company_id: company_id },
+            attributes: [
+                'id',
+                'name',
+
+                [
+                    db.sequelize.fn('COUNT', db.sequelize.where(db.sequelize.col('flats->listings.status'), 'active')),
+                    'activeListingsCount'
+                ],
+
+                [
+                    db.sequelize.fn('COUNT', db.sequelize.where(db.sequelize.col('flats->listings.status'), {
+                        [Op.in]: ['pending'] 
+                    })),
+                    'pendingListingsCount' 
+                ],
+
+                [
+                    db.sequelize.fn('COUNT', db.sequelize.col('flats->listings.id')),
+                    'totalListingsCount'
+                ]
+            ],
+            include: [
+                {
+                    model: Photo,
+                    as: 'photos',
+                    required: false,
+                    where: { imageable_type: 'Property' }
+                },
+
+                {
+                    model: Flat,
+                    as: 'flats',
+                    attributes: [], 
+                    required: false,
+                    include: [{
+                        model: Listing,
+                        as: 'listings', 
+                        attributes: [],
+                        required: false,
+                    }],
+                }
+            ],
+            group: ['Property.id', 'photos.id'],
+            order: [['name', 'ASC']]
+        });
+
+        const formattedResult = propertiesSummary.reduce((acc, property) => {
+            const propertyId = property.id;
+
+            if (!acc.find(p => p.id === propertyId)) {
+                const counts = {
+                    activeListingsCount: parseInt(property.dataValues.activeListingsCount, 10) || 0,
+                    nonInactiveListingsCount: parseInt(property.dataValues.nonInactiveListingsCount, 10) || 0,
+                    totalListingsCount: parseInt(property.dataValues.totalListingsCount, 10) || 0,
+                };
+
+                const propertyPhotos = propertiesSummary
+                    .filter(p => p.id === propertyId && p.photos)
+                    .map(p => p.photos)
+                    .flat()
+                    .filter((photo, index, self) =>
+                        index === self.findIndex((t) => t.id === photo.id)
+                    );
+
+                acc.push({
+                    id: property.id,
+                    name: property.name,
+                    photos: propertyPhotos,
+                    ...counts,
+                });
+            }
+            return acc;
+        }, []);
+
+
+        res.status(200).json({ properties: formattedResult });
+
+    } catch (error) {
+        logger.error('Error fetching property listing summary:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };

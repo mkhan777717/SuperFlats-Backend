@@ -67,7 +67,6 @@ router.delete(
 );
 
 // -------------------- Listing Routes --------------------
-// NEW Public search endpoint for all active listings
 router.get('/listings/public/search', listingController.publicSearchListings);
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
 router.get('/listings/me', authMiddleware, roleMiddleware('agent', 'admin'), listingController.getMyListings);
@@ -75,7 +74,12 @@ router.get('/listings/:id', listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
 router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getListingsByProperty);
-
+router.get(
+  '/listings/summary/properties',
+  authMiddleware,
+  roleMiddleware('admin', 'agent'),
+  listingController.getPropertiesSummary
+);
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
@@ -90,7 +94,6 @@ router.patch(
 );
 
 // -------------------- Employee Routes --------------------
-// Updated route to get all employees for the authenticated user's company
 router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
 router.get('/employees/', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeesByCompany);
 router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeeById);
@@ -108,7 +111,7 @@ router.get(
   '/bookings/summary/properties',
   authMiddleware,
   roleMiddleware('admin', 'agent'),
-  bookingController.getPropertiesBookingSummary 
+  bookingController.getPropertiesSummary
 );
 
 
@@ -119,7 +122,6 @@ router.get('/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantC
 router.get('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantById);
 router.patch('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.updateTenant);
 router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenant);
-// ID Proofs routes for a specific tenant
 router.post('/tenants/:tenantId/photo', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), tenantController.uploadTenantphotos);
 router.delete('/tenants/:tenantId/photo/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenantphotos);
 router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantsByProperty);
@@ -133,7 +135,6 @@ router.get('/properties/:propertyId/flats/available', authMiddleware, roleMiddle
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
-// Upload a photo for a flat
 router.post('/flats/:flatId/photos', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), flatController.uploadFlatPhoto);
 router.delete('/flats/:flatId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.deleteFlatPhoto);
 
