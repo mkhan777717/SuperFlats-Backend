@@ -125,6 +125,12 @@ router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), 
 router.post('/tenants/:tenantId/photo', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), tenantController.uploadTenantphotos);
 router.delete('/tenants/:tenantId/photo/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenantphotos);
 router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantsByProperty);
+router.get(
+  '/tenants/summary/properties',
+  authMiddleware,
+  roleMiddleware('admin', 'agent'),
+  tenantController.getPropertiesSummary
+);
 
 
 // -------------------- Flats Routes --------------------

@@ -500,3 +500,92 @@ exports.deleteTenantphotos = async (req, res) => {
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
+
+
+exports.getPropertiesSummary = async (req, res) => {
+    try {
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            return res.status(403).json({ message: 'User is not associated with a company.' });
+        }
+
+        const company_id = req.user.employee.company_id;
+        
+        const twoMonthsFromNow = new Date();
+        twoMonthsFromNow.setDate(twoMonthsFromNow.getDate() + 60);
+
+        const twoMonthsFromNowIso = twoMonthsFromNow.toISOString();
+        const nowIso = new Date().toISOString();
+
+        const propertiesSummary = await Property.findAll({
+            where: { company_id: company_id },
+            attributes: [
+                'id',
+                'name',
+                
+                [
+                    db.sequelize.fn('COUNT', db.sequelize.fn('DISTINCT', db.sequelize.col('tenants.id'))),
+                    'totalTenantCount'
+                ],
+
+                [
+                    db.sequelize.literal(`COUNT(DISTINCT CASE WHEN (\`tenants->bookings\`.\`end_date\` <= '${twoMonthsFromNowIso}' AND \`tenants->bookings\`.\`end_date\` > '${nowIso}') THEN \`tenants\`.\`id\` ELSE NULL END)`),
+                    'expiringBookingCount'
+                ],
+            ],
+            include: [
+                {
+                    model: db.Tenant, 
+                    as: 'tenants',
+                    attributes: [], 
+                    required: false, 
+                    include: [{
+                        model: db.Booking, 
+                        as: 'bookings', 
+                        attributes: [],
+                        required: false, 
+                        where: { status: 'active' }
+                    }]
+                },
+                {
+                    model: Photo,
+                    as: 'photos',
+                    required: false,
+                    where: { imageable_type: 'Property', is_primary: true } 
+                },
+            ],
+            group: ['Property.id', 'photos.id'], 
+            order: [['name', 'ASC']]
+        });
+
+
+        const finalSummary = propertiesSummary.reduce((acc, property) => {
+            const propertyId = property.id;
+            let existingEntry = acc.find(p => p.id === propertyId);
+            
+            const currentPhotoObject = Array.isArray(property.photos) && property.photos.length > 0
+                ? property.photos[0]
+                : property.photos;
+
+            if (!existingEntry) {
+                existingEntry = {
+                    id: property.id,
+                    name: property.name,
+                    photos: currentPhotoObject ? [currentPhotoObject] : [], 
+                    
+                    totalTenantCount: parseInt(property.dataValues.totalTenantCount, 10) || 0,
+                    expiringBookingCount: parseInt(property.dataValues.expiringBookingCount, 10) || 0,
+                };
+                acc.push(existingEntry);
+            } 
+            
+            return acc;
+        }, []);
+
+
+        res.status(200).json({ properties: finalSummary });
+
+    } catch (error) {
+        logger.error('Error fetching property tenant summary:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
