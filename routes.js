@@ -157,6 +157,12 @@ router.get('/rents/tenants/:tenantId/total-due', authMiddleware, roleMiddleware(
 router.patch('/rents/bills/:billId/pay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsPaid);
 router.patch('/rents/bills/:billId/unpay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsUnpaid);
 router.get('/properties/:propertyId/tenants-with-due', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getTenantsWithDueByProperty);
+router.get(
+  '/rents/summary/properties',
+  authMiddleware,
+  roleMiddleware('admin', 'agent'),
+  rentController.getPropertiesSummary
+);
 
 
 
