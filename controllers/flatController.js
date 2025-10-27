@@ -648,3 +648,74 @@ exports.getAvailableFlats = async (req, res) => {
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
+
+exports.getPropertiesSummary = async (req, res) => {
+    try {
+        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+            return res.status(403).json({ message: 'User is not associated with a company.' });
+        }
+        const company_id = req.user.employee.company_id;
+        const flatSummary = await db.Property.findAll({
+            where: { company_id: company_id },
+            attributes: [
+                'id',
+                'name',
+                
+                [
+                    db.sequelize.fn('COUNT', db.sequelize.col('flats.id')),
+                    'totalFlatCount'
+                ],
+                [
+                    db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flatStatus\` = 'available' THEN 1 ELSE 0 END)`),
+                    'availableFlatCount'
+                ],
+                
+                [
+                    db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flatStatus\` = 'occupied' THEN 1 ELSE 0 END)`),
+                    'occupiedFlatCount'
+                ],
+            ],
+            include: [
+                {
+                    model: db.Flat, 
+                    as: 'flats',
+                    attributes: [], 
+                    required: false, 
+                },
+                {
+                    model: db.Photo, 
+                    as: 'photos',
+                    required: false,
+                    where: { imageable_type: 'Property', is_primary: true } 
+                },
+            ],
+            group: ['Property.id', 'photos.id'], 
+            order: [['name', 'ASC']]
+        });
+        
+        
+        
+        const finalSummary = flatSummary.reduce((acc, property) => {
+            const currentPhotoObject = Array.isArray(property.photos) && property.photos.length > 0
+                ? property.photos[0]
+                : property.photos;
+            acc.push({
+                id: property.id,
+                name: property.name,
+                photos: currentPhotoObject ? [currentPhotoObject] : [],
+                totalFlatCount: parseInt(property.dataValues.totalFlatCount, 10) || 0,
+                availableFlatCount: parseInt(property.dataValues.availableFlatCount, 10) || 0,
+                occupiedFlatCount: parseInt(property.dataValues.occupiedFlatCount, 10) || 0,
+            });
+            
+            return acc;
+        }, []);
+
+
+        res.status(200).json({ properties: finalSummary });
+
+    } catch (error) {
+        console.error('Error fetching flat summary:', error); 
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
