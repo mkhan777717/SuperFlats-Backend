@@ -129,11 +129,9 @@ exports.getEmployeeById = async (req, res) => {
 exports.getEmployeesByCompany = async (req, res) => {
   try {
     const companyId = req.user.employee.company_id;
-    console.log(companyId);
     if (!companyId) {
       return res.status(401).json({ message: 'Unauthorized. Company ID not found.' });
     }
-
     const employees = await Employee.findAll({
       where: { company_id: companyId },
       include: [{

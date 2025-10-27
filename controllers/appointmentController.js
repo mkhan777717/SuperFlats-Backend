@@ -179,7 +179,6 @@ exports.getAppointments = async (req, res) => {
   try {
     const { id: userId, role: userRole, employee } = req.user;
     const userCompanyId = employee ? employee.company_id : null;
-    console.log('Fetching appointments for user:', userId, 'with role:', userRole, 'and company:', userCompanyId);
     const {
       limit = 20,
       offset = 0,
@@ -191,7 +190,7 @@ exports.getAppointments = async (req, res) => {
     const finalOffset = parseInt(offset, 10);
 
     let whereClause = {};
-    let scheduledAtOrder = 'ASC'; // 💡 Default to ASC (soonest upcoming first)
+    let scheduledAtOrder = 'ASC'; 
 
     if (userRole === 'client') {
       whereClause = { user_id: userId };
@@ -213,15 +212,14 @@ exports.getAppointments = async (req, res) => {
 
       if (lowerStatus === 'upcoming') {
         whereClause.status = { [Op.ne]: 'completed' };
-        scheduledAtOrder = 'ASC'; // Upcoming should be ASC (soonest first)
+        scheduledAtOrder = 'ASC';
       } else if (validStatuses.includes(lowerStatus)) {
         whereClause.status = lowerStatus;
 
-        // 💡 CRITICAL CHANGE: If fetching completed/cancelled, sort DESC (newest first)
         if (lowerStatus === 'completed' || lowerStatus === 'cancelled') {
           scheduledAtOrder = 'DESC';
         } else {
-          scheduledAtOrder = 'ASC'; // Pending/Confirmed are typically upcoming
+          scheduledAtOrder = 'ASC';
         }
       }
     }
@@ -229,12 +227,22 @@ exports.getAppointments = async (req, res) => {
     const { count, rows } = await Appointment.findAndCountAll({
       where: whereClause,
       include: [
-        { model: db.Listing, as: 'listing' },
+        { 
+          model: db.Listing, 
+          as: 'listing',
+          include: [{ 
+            model: db.Flat, 
+            as: 'flat', 
+            include: [{
+              model: db.Property,
+              as: 'property' 
+            }]
+          }], 
+        },
         { model: db.User, as: 'user' },
         { model: db.User, as: 'employee' },
       ],
 
-      // 💡 CRITICAL FIX: Use the dynamic order direction
       order: [['scheduled_at', scheduledAtOrder]],
 
       limit: finalLimit,
