@@ -54,7 +54,7 @@ module.exports = (sequelize) => {
     tableName: 'bookings',
     timestamps: true,
     createdAt: 'created_at',
-    updatedAt: 'updated_at', // Corrected to use a standard field name
+    updatedAt: 'updated_at', 
   });
 
   Booking.associate = (models) => {

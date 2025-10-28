@@ -43,14 +43,12 @@ module.exports = (sequelize) => {
             type: DataTypes.TEXT,
             allowNull: true, 
         },
-        created_at: {
-            type: DataTypes.DATE,
-            allowNull: false,
-            defaultValue: DataTypes.NOW,
-        },
+
     }, {
         tableName: 'appointments',
-        timestamps: false,
+        timestamps: true,
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
         indexes: [
             {
                 unique: true,

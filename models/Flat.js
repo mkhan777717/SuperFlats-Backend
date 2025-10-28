@@ -59,7 +59,7 @@ module.exports = (sequelize) => {
         tableName: 'flats',
         timestamps: true,
         createdAt: 'created_at',
-        updatedAt: false,
+        updatedAt: 'updated_at',
         indexes: [{
             unique: true,
             fields: ['property_id', 'unit_number']

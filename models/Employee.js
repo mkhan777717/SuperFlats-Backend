@@ -23,7 +23,9 @@ module.exports = (sequelize) => {
     },
   }, {
     tableName: 'employees',
-    timestamps: false,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
   });
 
   Employee.associate = (models) => {

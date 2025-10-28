@@ -73,7 +73,6 @@ module.exports = (sequelize) => {
         timestamps: true,
         createdAt: 'created_at',
         updatedAt: 'updated_at',
-        // Define the virtual field in the model's JSON output
         toJSON: {
             virtuals: true,
         },

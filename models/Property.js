@@ -95,7 +95,7 @@ module.exports = (sequelize) => {
     tableName: 'properties',
     timestamps: true,
     createdAt: 'created_at',
-    updatedAt: false,
+    updatedAt: 'updated_at',
   });
 
   Property.associate = (models) => {

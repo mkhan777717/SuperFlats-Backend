@@ -47,14 +47,12 @@ module.exports = (sequelize) => {
             allowNull: true,
         },
 
-        created_at: {
-            type: DataTypes.DATE,
-            allowNull: false,
-            defaultValue: DataTypes.NOW,
-        },
+
     }, {
         tableName: 'users',
-        timestamps: false,
+        timestamps: true,
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
     });
 
     User.associate = (models) => {

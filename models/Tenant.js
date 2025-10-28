@@ -36,14 +36,12 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: 'available',
         },
-        created_at: {
-            type: DataTypes.DATE,
-            allowNull: false,
-            defaultValue: DataTypes.NOW,
-        },
+
     }, {
         tableName: 'tenants',
-        timestamps: false,
+        timestamps: true,
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
     });
 
     Tenant.associate = (models) => {
@@ -71,11 +69,7 @@ module.exports = (sequelize) => {
             as: 'photos',
             onDelete: 'CASCADE',
         });
-        Tenant.hasOne(models.Ledger, {
-            foreignKey: 'tenant_id',
-            as: 'ledger',
-            onDelete: 'CASCADE',
-        });
+
         Tenant.hasMany(models.RentBill, {
             foreignKey: 'tenant_id',
             as: 'rent_bills',
