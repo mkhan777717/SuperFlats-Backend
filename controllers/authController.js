@@ -17,7 +17,7 @@ const generateToken = (id, role, company_id) => {
         payload.company_id = company_id;
     }
     return jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: '30d',
+        expiresIn: '1095d', // Token valid for 3 years
     });
 };
 
