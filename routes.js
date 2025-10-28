@@ -137,7 +137,9 @@ router.get(
 router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
 router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatsByProperty);
 router.get('/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlats);
-router.get('/properties/:propertyId/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlats);
+router.get('/properties/:propertyId/listings/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlatsForListing);
+router.get('/properties/:propertyId/bookings/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlatsForBooking);
+
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
