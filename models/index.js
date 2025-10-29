@@ -20,6 +20,8 @@ const sequelize = new Sequelize(
         host: currentConfig.host,
         dialect: currentConfig.dialect,
         logging: false,
+        port: currentConfig.port, // <--- Add port
+        dialectOptions: currentConfig.dialectOptions, // <--- ADD THIS LINE
     }
 );
 
