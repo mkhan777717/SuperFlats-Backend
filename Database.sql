@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Oct 28, 2025 at 04:15 PM
+-- Generation Time: Oct 29, 2025 at 07:49 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -78,6 +78,14 @@ CREATE TABLE `bookings` (
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `bookings`
+--
+
+INSERT INTO `bookings` (`id`, `flat_id`, `tenant_id`, `start_date`, `end_date`, `monthly_rent`, `security_amount`, `security_type`, `status`, `created_at`, `updated_at`) VALUES
+(1, 11, 14, '2025-10-29 18:30:00', '2026-10-28 18:30:00', 20000.00, 50000.00, 'deposit', 'active', '2025-10-29 05:31:52', '2025-10-29 05:31:52'),
+(2, 4, 1, '2025-10-30 18:30:00', '2026-10-30 18:30:00', 30000.00, 1000000.00, 'lease', 'active', '2025-10-29 05:39:28', '2025-10-29 05:39:28');
 
 -- --------------------------------------------------------
 
@@ -159,14 +167,14 @@ CREATE TABLE `flats` (
 INSERT INTO `flats` (`id`, `company_id`, `property_id`, `title`, `description`, `unit_number`, `type`, `area_sqft`, `flatStatus`, `unique_amenities`, `created_at`, `updated_at`) VALUES
 (1, 1, 1, 'A-101', 'Bright 2BHK with balcony', 'A101', '1BHK', 850.00, 'available', '[\"balcony\",\"sea_view\"]', '2025-10-28 08:56:00', '2025-10-28 08:56:00'),
 (3, 1, 1, 'A-102', 'Compact studio perfect for students', 'A102', '1RK', 400.00, 'occupied', '[\"modular_kitchen\"]', '2025-10-28 08:56:59', '2025-10-28 08:56:59'),
-(4, 1, 1, 'A-103', 'Spacious 2BHK with private parking', 'A103', '2BHK', 900.00, 'available', '[\"parking\",\"storage_room\"]', '2025-10-28 08:57:14', '2025-10-28 08:57:14'),
+(4, 1, 1, 'A-103', 'Spacious 2BHK with private parking', 'A103', '2BHK', 900.00, 'occupied', '[\"parking\",\"storage_room\"]', '2025-10-28 08:57:14', '2025-10-29 05:39:28'),
 (5, 1, 2, 'B-201', 'Premium 3BHK with open kitchen design', 'B201', '3BHK', 1250.00, 'available', '[\"open_kitchen\",\"corner_unit\"]', '2025-10-28 08:57:29', '2025-10-28 08:57:29'),
 (6, 1, 2, 'B-202', '1BHK budget-friendly apartment', 'B202', '1BHK', 600.00, 'occupied', '[\"cctv_access\"]', '2025-10-28 08:57:38', '2025-10-28 08:57:38'),
 (7, 1, 2, 'B-203', '2BHK with separate study room', 'B203', '2BHK', 1450.00, 'available', '[\"study_room\",\"large_balcony\"]', '2025-10-28 08:58:22', '2025-10-28 08:58:22'),
 (8, 1, 3, 'C-301', 'Modern 2BHK with balcony garden', 'C301', '2BHK', 880.00, 'occupied', '[\"balcony_garden\"]', '2025-10-28 08:58:53', '2025-10-28 08:58:53'),
 (9, 1, 3, 'C-302', 'Corner 1RK unit with extra storage', 'C302', '1RK', 420.00, 'available', '[\"extra_storage\"]', '2025-10-28 08:59:00', '2025-10-28 08:59:00'),
 (10, 1, 3, 'C-303', 'Family-friendly 2BHK near park', 'C303', '2BHK', 910.00, 'available', '[\"green_view\",\"kids_play_area\"]', '2025-10-28 08:59:07', '2025-10-28 08:59:07'),
-(11, 1, 4, 'D-101', 'Compact 1BHK with lift access', 'D101', '1BHK', 580.00, 'available', '[\"lift_access\"]', '2025-10-28 08:59:24', '2025-10-28 08:59:24'),
+(11, 1, 4, 'D-101', 'Compact 1BHK with lift access', 'D101', '1BHK', 580.00, 'occupied', '[\"lift_access\"]', '2025-10-28 08:59:24', '2025-10-29 05:31:52'),
 (12, 1, 4, 'D-102', '3BHK with dedicated utility area', 'D102', '3BHK', 1200.00, 'occupied', '[\"utility_area\"]', '2025-10-28 08:59:33', '2025-10-28 08:59:33'),
 (13, 1, 4, 'D-103', 'Stylish 1BHK with bright interiors', 'D103', '1BHK', 410.00, 'maintenance', '[\"bright_interiors\"]', '2025-10-28 09:00:02', '2025-10-28 09:00:02'),
 (14, 1, 5, 'E-401', 'Penthouse style 3BHK rooftop space', 'E401', '3BHK', 1600.00, 'available', '[\"rooftop_access\",\"panoramic_view\"]', '2025-10-28 09:00:52', '2025-10-28 09:00:52'),
@@ -261,7 +269,14 @@ INSERT INTO `photos` (`id`, `imageable_id`, `imageable_type`, `photo_url`, `name
 (23, 13, 'Flat', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761642316921-12.jpeg.webp?alt=media&token=3f24f04a-b90d-42b5-b42e-2e4094b193eb', NULL, 1, '2025-10-28 09:05:18', '2025-10-28 09:05:18'),
 (24, 14, 'Flat', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761642375358-13.jpeg.webp?alt=media&token=f659c39e-530b-49cf-8c87-2a06ed8a2a65', NULL, 1, '2025-10-28 09:06:17', '2025-10-28 09:06:17'),
 (25, 15, 'Flat', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761642387370-14.jpeg.webp?alt=media&token=0921094b-aec7-4e75-b628-2f7367ad7b6a', NULL, 1, '2025-10-28 09:06:28', '2025-10-28 09:06:28'),
-(26, 16, 'Flat', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761642398773-1.jpeg.webp?alt=media&token=16d0a17e-4900-4799-846b-b7d4ff98d943', NULL, 1, '2025-10-28 09:06:40', '2025-10-28 09:06:40');
+(26, 16, 'Flat', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761642398773-1.jpeg.webp?alt=media&token=16d0a17e-4900-4799-846b-b7d4ff98d943', NULL, 1, '2025-10-28 09:06:40', '2025-10-28 09:06:40'),
+(27, 28, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716483179-image-picker-7C71EB23-2537-49DB-8903-0A584E74B1EB-15201-0000001DCD453BCD.jpg.webp?alt=media&token=ac699de7-04bc-4ee9-80b4-ee0eb0e0a8fe', 'PAN', 0, '2025-10-29 05:41:24', '2025-10-29 05:41:24'),
+(28, 30, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716648652-image-picker-2A17DE11-B827-4616-9690-DA7B2008A59D-15201-0000001E9DAFD320.png.webp?alt=media&token=ddc0772a-ff59-4567-8429-3410f77b6a34', 'DL Card', 0, '2025-10-29 05:44:09', '2025-10-29 05:44:09'),
+(29, 30, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716649944-image-picker-198C8E70-7FFA-4F7E-ABF5-C008B2E295F2-15201-0000001EBA4F5153.jpg.webp?alt=media&token=289e3ec2-05fc-4a0c-8d9c-3c3f2669b4cf', 'voter ID', 0, '2025-10-29 05:44:12', '2025-10-29 05:44:12'),
+(30, 20, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716672449-image-picker-248E0595-592F-4ED6-AF96-A2575AD0ABE0-15201-0000001EDEAE901A.jpg.webp?alt=media&token=8435dd47-2f81-4f97-a72d-c61e8f9cbebb', 'adhar', 0, '2025-10-29 05:44:34', '2025-10-29 05:44:34'),
+(31, 23, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716696317-image-picker-240AC6C8-7016-400A-B5C6-2D4F761229A4-15201-0000001EFF6358EF.png.webp?alt=media&token=184414ed-5aea-4a98-af8f-0ad4e5312feb', 'DL Card', 0, '2025-10-29 05:44:58', '2025-10-29 05:44:58'),
+(32, 17, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716737222-image-picker-CDFE2989-716E-4DEE-A686-8814F591BE0B-15201-0000001F1B122A6A.jpg.webp?alt=media&token=e85f57cb-f52f-4a73-ad5a-1e579cd11731', 'Adhar card', 0, '2025-10-29 05:45:39', '2025-10-29 05:45:39'),
+(33, 17, 'Tenant', 'https://firebasestorage.googleapis.com/v0/b/super-flats.firebasestorage.app/o/1761716739323-image-picker-D68DEAF2-B6C6-4FB8-B642-499C5A109395-15201-0000001F34B351AC.jpg.webp?alt=media&token=2b474a2b-fc3b-4174-802a-05d148133719', 'PAN Card', 0, '2025-10-29 05:45:40', '2025-10-29 05:45:40');
 
 -- --------------------------------------------------------
 
@@ -348,7 +363,7 @@ CREATE TABLE `tenants` (
 --
 
 INSERT INTO `tenants` (`id`, `company_id`, `property_id`, `name`, `phone_number`, `status`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'Mohammed', '9663034115', 'available', '2025-10-28 09:18:13', '2025-10-28 09:18:13'),
+(1, 1, 1, 'Mohammed', '9663034115', 'occupied', '2025-10-28 09:18:13', '2025-10-29 05:39:28'),
 (2, 1, 1, 'Ahmed', '9665012341', 'available', '2025-10-28 09:18:27', '2025-10-28 09:18:27'),
 (3, 1, 1, 'Salman', '9665559872', 'available', '2025-10-28 09:18:39', '2025-10-28 09:18:39'),
 (4, 1, 1, 'Tariq', '9665048763', 'available', '2025-10-28 09:19:01', '2025-10-28 09:19:01'),
@@ -361,7 +376,7 @@ INSERT INTO `tenants` (`id`, `company_id`, `property_id`, `name`, `phone_number`
 (11, 1, 3, 'Rashid', '9665501234', 'available', '2025-10-28 09:21:29', '2025-10-28 09:21:29'),
 (12, 1, 3, 'Majed', '9665045328', 'available', '2025-10-28 09:21:47', '2025-10-28 09:21:47'),
 (13, 1, 4, 'Zaid', '9665067811', 'available', '2025-10-28 09:22:00', '2025-10-28 09:22:00'),
-(14, 1, 4, 'Fahad', '9665087654', 'available', '2025-10-28 09:22:10', '2025-10-28 09:22:10'),
+(14, 1, 4, 'Fahad', '9665087654', 'occupied', '2025-10-28 09:22:10', '2025-10-29 05:31:52'),
 (15, 1, 5, 'Anas', '9665099843', 'available', '2025-10-28 09:22:22', '2025-10-28 09:22:22'),
 (16, 1, 6, 'Nawaf', '9665112345', 'available', '2025-10-28 09:22:35', '2025-10-28 09:22:35'),
 (17, 1, 7, 'Talal', '9665223456', 'available', '2025-10-28 09:22:48', '2025-10-28 09:22:48'),
@@ -532,7 +547,7 @@ ALTER TABLE `appointments`
 -- AUTO_INCREMENT for table `bookings`
 --
 ALTER TABLE `bookings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `companies`
@@ -562,7 +577,7 @@ ALTER TABLE `listings`
 -- AUTO_INCREMENT for table `photos`
 --
 ALTER TABLE `photos`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
 
 --
 -- AUTO_INCREMENT for table `properties`
