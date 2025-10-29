@@ -167,7 +167,7 @@ exports.getAllBookings = async (req, res) => {
           as: 'flat',
           where: flatWhereClause,
           required: true,
-          include: [{ model: Property, as: 'property', attributes: ['id', 'name'] }]
+          include: [{ model: Property, as: 'property'}]
         },
         { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] },
       ],
@@ -254,7 +254,7 @@ exports.getBookingsByProperty = async (req, res) => {
           as: 'flat',
           where: flatWhereClause,
           required: true,
-          include: [{ model: Property, as: 'property', attributes: ['id', 'name'] }]
+          include: [{ model: Property, as: 'property' }]
         },
         { model: Tenant, as: 'tenant', attributes: ['id', 'name', 'phone_number'] },
       ],

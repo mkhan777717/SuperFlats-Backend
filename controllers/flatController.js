@@ -637,7 +637,7 @@ exports.getAvailableFlatsForListing = async (req, res) => {
                 flatStatus: 'available',
             },
             include: [
-                { model: Property, as: 'property', attributes: ['id', 'name', 'address'] },
+                { model: Property, as: 'property' },
             ],
             order: [['id', 'DESC']]
         });
@@ -681,7 +681,7 @@ const availableFlats = await Flat.findAll({
         },
     },
     include: [
-        { model: Property, as: 'property', attributes: ['id', 'name', 'address'] },
+        { model: Property, as: 'property' },
     ],
     order: [['id', 'DESC']]
 });

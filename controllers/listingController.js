@@ -302,11 +302,11 @@ exports.getListingsByProperty = async (req, res) => {
                     where: flatWhereClause,
                     required: true,
                     include: [
-                        { model: Property, as: 'property', attributes: ['id', 'name'], required: true },
+                        { model: Property, as: 'property', required: true },
                         { model: Photo, as: 'photos', where: { is_primary: true }, required: false }
                     ]
                 },
-                { model: User, as: 'lister', attributes: ['id', 'name'] },
+                { model: User, as: 'lister' },
             ],
             order,
             limit: parseInt(limit, 10),
