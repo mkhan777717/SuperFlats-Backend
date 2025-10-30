@@ -16,11 +16,14 @@ module.exports = {
     port: process.env.DB_PORT || 3306, // Default to MySQL port
     
     // 🎯 FIX: Explicitly disable SSL for localhost to bypass the error
-    dialectOptions: {
-      ssl: isLocalConnection(process.env.DB_HOST) ? false : { 
+dialectOptions: isLocalConnection(process.env.DB_HOST)
+  ? {}
+  : {
+      ssl: {
         require: true,
         rejectUnauthorized: false,
       },
+      allowPublicKeyRetrieval: true,
     },
   },
   
