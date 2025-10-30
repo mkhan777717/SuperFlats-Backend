@@ -1,5 +1,3 @@
-// config/database.js
-
 const dotenv = require('dotenv');
 dotenv.config();
 
@@ -15,15 +13,12 @@ module.exports = {
     dialect: process.env.DB_DIALECT,
     port: process.env.DB_PORT || 3306, // Default to MySQL port
     
-    // 🎯 FIX: Explicitly disable SSL for localhost to bypass the error
-dialectOptions: isLocalConnection(process.env.DB_HOST)
-  ? {}
-  : {
-      ssl: {
+    // Explicitly disable SSL for localhost development
+    dialectOptions: {
+      ssl: isLocalConnection(process.env.DB_HOST) ? false : { 
         require: true,
         rejectUnauthorized: false,
       },
-      allowPublicKeyRetrieval: true,
     },
   },
   
@@ -35,15 +30,24 @@ dialectOptions: isLocalConnection(process.env.DB_HOST)
     dialect: process.env.DB_DIALECT,
     port: process.env.PROD_DB_PORT,
     
-    // 🎯 FIX: Mandatory SSL settings for Azure MySQL
+    // 🎯 FIX 1: Mandate SSL connection for the remote Hostinger database
     dialectOptions: {
-      // Azure/Cloud DBs require secure transport
-      ssl: 
-      
-      { 
-        require: true,
-        rejectUnauthorized: false, // This allows the connection without providing the Azure CA certificate file
+      ssl: {
+        require: true, 
+        // We set rejectUnauthorized to false to avoid requiring a specific CA certificate file,
+        // which simplifies deployment setup.
+        rejectUnauthorized: false, 
       },
     },
+    
+    // 🎯 FIX 2: Restrict the connection pool size to respect shared hosting limits
+    // Shared hosting environments (like Hostinger's standard plans) often have low connection limits (e.g., 10-15). 
+    // We set this low to prevent connection queueing/blocking when under heavy load.
+    pool: {
+      max: 5,   // Maximum number of connections in the pool
+      min: 0,   // Minimum number of connections in the pool
+      acquire: 20000, // The maximum time, in milliseconds, that pool will try to get connection before throwing error
+      idle: 10000     // The maximum time, in milliseconds, that a connection can be idle before being released
+    }
   },
 };
