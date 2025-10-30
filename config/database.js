@@ -35,10 +35,12 @@ module.exports = {
     // 🎯 FIX: Mandatory SSL settings for Azure MySQL
     dialectOptions: {
       // Azure/Cloud DBs require secure transport
-      ssl: { 
-        require: true,
-        rejectUnauthorized: false, // This allows the connection without providing the Azure CA certificate file
-      },
+      ssl: false,
+      
+      // { 
+      //   require: true,
+      //   rejectUnauthorized: false, // This allows the connection without providing the Azure CA certificate file
+      // },
     },
   },
 };
