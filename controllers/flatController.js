@@ -39,7 +39,7 @@ exports.createFlat = async (req, res) => {
         }
 
         const {
-            title, unit_number, type, area_sqft, flatStatus, description, unique_amenities
+            title, unit_number, type, area_sqft, flat_status, description, unique_amenities
         } = req.body;
 
         const normalizedUnitNumber = unit_number ? String(unit_number).trim().toUpperCase() : null;
@@ -82,7 +82,7 @@ exports.createFlat = async (req, res) => {
                 unit_number: normalizedUnitNumber,
                 type: type,
                 area_sqft: area_sqft,
-                flatStatus: flatStatus,
+                flat_status: flat_status,
                 unique_amenities: unique_amenities || [],
             }, { transaction });
         } catch (err) {
@@ -138,7 +138,7 @@ exports.getFlatsByProperty = async (req, res) => {
     const {
         keywords,
         flatType,
-        flatStatus,
+        flat_status,
         sortBy = 'created_at',
         sortOrder = 'DESC',
         limit = 10,
@@ -169,8 +169,8 @@ exports.getFlatsByProperty = async (req, res) => {
     if (flatType && getCountColumn(flatType)) {
         andConditions.push({ type: flatType });
     }
-    if (flatStatus && validStatuses.includes(flatStatus)) {
-        andConditions.push({ flatStatus: flatStatus });
+    if (flat_status && validStatuses.includes(flat_status)) {
+        andConditions.push({ flat_status: flat_status });
     }
 
     if (andConditions.length > 0) {
@@ -552,7 +552,7 @@ exports.getFlats = async (req, res) => {
             keywords,
             propertyId, // Allow filtering by property
             flatType,
-            flatStatus,
+            flat_status,
             sortBy = 'created_at',
             sortOrder = 'DESC',
             limit = 10,
@@ -575,8 +575,8 @@ exports.getFlats = async (req, res) => {
         if (flatType) {
             whereConditions.type = flatType;
         }
-        if (flatStatus) {
-            whereConditions.flatStatus = flatStatus;
+        if (flat_status) {
+            whereConditions.flat_status = flat_status;
         }
 
         const validSortColumns = ['created_at', 'unit_number', 'area_sqft'];
@@ -634,7 +634,7 @@ exports.getAvailableFlatsForListing = async (req, res) => {
                 id: {
                     [Op.notIn]: db.sequelize.literal(`(SELECT flat_id FROM listings WHERE company_id = ${company_id})`),
                 },
-                flatStatus: 'available',
+                flat_status: 'available',
             },
             include: [
                 { model: Property, as: 'property' },
@@ -669,7 +669,7 @@ const availableFlats = await Flat.findAll({
     where: {
         company_id: company_id, // Outer query handles company scope
         property_id: propertyId,
-        flatStatus: 'available',
+        flat_status: 'available',
         id: {
             // CORRECTED: Removed 'bookings.company_id' entirely.
             // The outer 'WHERE company_id' check guarantees we only look at 
@@ -711,12 +711,12 @@ exports.getPropertiesSummary = async (req, res) => {
                     'totalFlatCount'
                 ],
                 [
-                    db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flatStatus\` = 'available' THEN 1 ELSE 0 END)`),
+                    db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flat_status\` = 'available' THEN 1 ELSE 0 END)`),
                     'availableFlatCount'
                 ],
                 
                 [
-                    db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flatStatus\` = 'occupied' THEN 1 ELSE 0 END)`),
+                    db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flat_status\` = 'occupied' THEN 1 ELSE 0 END)`),
                     'occupiedFlatCount'
                 ],
             ],

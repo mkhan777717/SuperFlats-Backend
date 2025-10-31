@@ -45,7 +45,7 @@ module.exports = (sequelize) => {
             type: DataTypes.DECIMAL(10, 2),
             allowNull: true,
         },
-        flatStatus: {
+        flat_status: {
             type: DataTypes.ENUM('available', 'occupied', 'maintenance'),
             defaultValue: 'available',
         },

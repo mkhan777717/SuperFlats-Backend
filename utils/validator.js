@@ -180,7 +180,7 @@ const createFlatSchema = Joi.object({
   unit_number: Joi.string().trim().uppercase().min(1).required(),
   type: Joi.string().valid('1RK', '1BHK', '2BHK', '3BHK', '3BHK+').required(),
   area_sqft: Joi.number().precision(2).optional().allow(null),
-  flatStatus: Joi.string().valid('available', 'occupied', 'maintenance').optional().default('available'),
+  flat_status: Joi.string().valid('available', 'occupied', 'maintenance').optional().default('available'),
   unique_amenities: Joi.array().items(Joi.string()).optional(),
 });
 
@@ -191,7 +191,7 @@ const updateFlatSchema = Joi.object({
   unit_number: Joi.string().trim().uppercase().min(1).optional(),
   type: Joi.string().valid('1RK', '1BHK', '2BHK', '3BHK', '3BHK+').optional(),
   area_sqft: Joi.number().precision(2).optional().allow(null),
-  flatStatus: Joi.string().valid('available', 'occupied', 'maintenance').optional(),
+  flat_status: Joi.string().valid('available', 'occupied', 'maintenance').optional(),
   unique_amenities: Joi.array().items(Joi.string()).optional(),
 }).min(1);
 
