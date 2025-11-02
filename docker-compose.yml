@@ -4,25 +4,32 @@ services:
     image: mysql:8.0
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: super123
       MYSQL_DATABASE: super_flats_new
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
       - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psuper123"]
+      interval: 5s
+      retries: 10
+      timeout: 5s
+      start_period: 10s
 
   api:
     container_name: superflats-api
     build: .
     ports:
-      - "5001:5001"       
+      - "5001:5001"
     restart: always
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
-      - .env           
+      - .env
     environment:
-      DB_HOST: db         
+      DB_HOST: db
 
 volumes:
   mysql_data:
