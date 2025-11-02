@@ -22,3 +22,5 @@ coverage
 
 #logs
 /logs
+
+serviceAccountKey.json
