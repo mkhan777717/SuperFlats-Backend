@@ -13,13 +13,10 @@ module.exports = {
     dialect: process.env.DB_DIALECT,
     port: process.env.DB_PORT || 3306, // Default to MySQL port
     
-    // Explicitly disable SSL for localhost development
-    dialectOptions: {
-      ssl: isLocalConnection(process.env.DB_HOST) ? false : { 
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
+dialectOptions: {
+  ssl: false,
+},
+
   },
   
   production: {
