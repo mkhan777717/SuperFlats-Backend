@@ -154,7 +154,7 @@ CREATE TABLE `flats` (
   `unit_number` varchar(255) NOT NULL,
   `type` varchar(255) NOT NULL,
   `area_sqft` decimal(10,2) DEFAULT NULL,
-  `flatStatus` enum('available','occupied','maintenance') DEFAULT 'available',
+  `flat_status` enum('available','occupied','maintenance') DEFAULT 'available',
   `unique_amenities` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`unique_amenities`)),
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL
@@ -164,7 +164,7 @@ CREATE TABLE `flats` (
 -- Dumping data for table `flats`
 --
 
-INSERT INTO `flats` (`id`, `company_id`, `property_id`, `title`, `description`, `unit_number`, `type`, `area_sqft`, `flatStatus`, `unique_amenities`, `created_at`, `updated_at`) VALUES
+INSERT INTO `flats` (`id`, `company_id`, `property_id`, `title`, `description`, `unit_number`, `type`, `area_sqft`, `flat_status`, `unique_amenities`, `created_at`, `updated_at`) VALUES
 (1, 1, 1, 'A-101', 'Bright 2BHK with balcony', 'A101', '1BHK', 850.00, 'available', '[\"balcony\",\"sea_view\"]', '2025-10-28 08:56:00', '2025-10-28 08:56:00'),
 (3, 1, 1, 'A-102', 'Compact studio perfect for students', 'A102', '1RK', 400.00, 'occupied', '[\"modular_kitchen\"]', '2025-10-28 08:56:59', '2025-10-28 08:56:59'),
 (4, 1, 1, 'A-103', 'Spacious 2BHK with private parking', 'A103', '2BHK', 900.00, 'occupied', '[\"parking\",\"storage_room\"]', '2025-10-28 08:57:14', '2025-10-29 05:39:28'),

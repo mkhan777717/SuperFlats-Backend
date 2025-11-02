@@ -42,7 +42,7 @@ exports.createBooking = async (req, res) => {
       await transaction.rollback();
       return res.status(403).json({ message: 'You are not authorized to book a flat for this company.' });
     }
-    if (flat.flatStatus !== 'available') {
+    if (flat.flat_status !== 'available') {
       await transaction.rollback();
       return res.status(409).json({ message: 'This flat is not available for booking.' });
     }
@@ -58,7 +58,7 @@ exports.createBooking = async (req, res) => {
       status: 'active',
     }, { transaction });
 
-    await flat.update({ flatStatus: 'occupied' }, { transaction });
+    await flat.update({ flat_status: 'occupied' }, { transaction });
     await tenant.update({ status: 'occupied' }, { transaction });
 
     await transaction.commit();
@@ -314,7 +314,7 @@ exports.updateBooking = async (req, res) => {
     if (newStatus && (newStatus === 'ended' || newStatus === 'cancelled') && oldStatus === 'active') {
       const flat = await Flat.findByPk(booking.flat_id, { transaction });
       if (flat) {
-        await flat.update({ flatStatus: 'available' }, { transaction });
+        await flat.update({ flat_status: 'available' }, { transaction });
       }
       const tenant = await Tenant.findByPk(booking.tenant_id, { transaction });
       if (tenant) {
@@ -368,7 +368,7 @@ exports.deleteBooking = async (req, res) => {
 
     const flat = await Flat.findByPk(booking.flat_id, { transaction });
     if (flat) {
-      await flat.update({ flatStatus: 'available' }, { transaction });
+      await flat.update({ flat_status: 'available' }, { transaction });
     }
 
     const tenant = await Tenant.findByPk(booking.tenant_id, { transaction });
