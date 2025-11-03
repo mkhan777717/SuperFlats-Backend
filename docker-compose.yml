@@ -4,16 +4,19 @@ services:
     image: mysql:8.0
     restart: always
     environment:
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      # FIX: Use the password the application expects (${DB_PASSWORD} = super123) 
+      # as the MYSQL_ROOT_PASSWORD to ensure consistency.
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      
+      # We no longer need MYSQL_USER or MYSQL_PASSWORD since the app connects as root.
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD}"]
+      # FIX: Use 'root' user and the application's password for the healthcheck ping.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       interval: 5s
       retries: 10
       timeout: 5s
