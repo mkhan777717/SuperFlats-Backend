@@ -12,12 +12,12 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      # Use 'root' user and the application's password for the healthcheck ping.
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
-      interval: 5s
-      retries: 10
+      interval: 5s # Check every 5 seconds
+      retries: 15 # Allow up to 15 retries (75 seconds of total checking time)
       timeout: 5s
-      start_period: 10s
+      # Give the DB 30 seconds to start and import data before checking
+      start_period: 30s 
 
   api:
     container_name: superflats-api
@@ -27,16 +27,12 @@ services:
     restart: always
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_healthy # Wait for the robust healthcheck to pass
     env_file:
       - .env
     environment:
       DB_HOST: db
-    # Explicitly wait 5 seconds before running the app's main process.
-    # This mitigates the race condition where the Node app tries to connect before
-    # the MySQL server is fully listening on its socket, even after the healthcheck passes.
-    command: ["sh", "-c", "echo 'Waiting 5 seconds for DB listener to fully initialize...' && sleep 5 && npm start"]
-    # NOTE: If your actual entrypoint is different from 'npm start', replace it above (e.g., 'node index.js').
+    command: ["npm", "start"]
 
 volumes:
   mysql_data:
