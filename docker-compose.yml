@@ -4,18 +4,14 @@ services:
     image: mysql:8.0
     restart: always
     environment:
-      # FIX: Use the password the application expects (${DB_PASSWORD} = super123) 
-      # as the MYSQL_ROOT_PASSWORD to ensure consistency.
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      
-      # We no longer need MYSQL_USER or MYSQL_PASSWORD since the app connects as root.
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
       - "3306:3306"
     healthcheck:
-      # FIX: Use 'root' user and the application's password for the healthcheck ping.
+      # Use 'root' user and the application's password for the healthcheck ping.
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       interval: 5s
       retries: 10
@@ -35,6 +31,11 @@ services:
       - .env
     environment:
       DB_HOST: db
+    # Explicitly wait 5 seconds before running the app's main process.
+    # This mitigates the race condition where the Node app tries to connect before
+    # the MySQL server is fully listening on its socket, even after the healthcheck passes.
+    command: ["sh", "-c", "echo 'Waiting 5 seconds for DB listener to fully initialize...' && sleep 5 && npm start"]
+    # NOTE: If your actual entrypoint is different from 'npm start', replace it above (e.g., 'node index.js').
 
 volumes:
   mysql_data:
