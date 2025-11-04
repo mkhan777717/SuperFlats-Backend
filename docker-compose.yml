@@ -33,6 +33,10 @@ services:
     environment:
       DB_HOST: db
     command: ["npm", "start"]
+    logging:
+      options:
+        max-size: "10m" 
+        max-file: "5"   
 
 volumes:
   mysql_data:
