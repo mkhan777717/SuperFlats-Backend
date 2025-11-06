@@ -127,24 +127,74 @@ exports.getEmployeeById = async (req, res) => {
 
 // Get all employees for a specific company
 exports.getEmployeesByCompany = async (req, res) => {
+  if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+    return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
+  }
+
+  const queryParams = req.query;
+  const companyId = req.user.employee.company_id;
+
+  const {
+    keywords,
+    sortBy = 'joined_at', 
+    sortOrder = 'ASC',    
+    limit = 10,
+    offset = 0,
+  } = queryParams;
+
+  const whereConditions = {
+    company_id: companyId,
+  };
+
+  const andConditions = [];
+
+  const validEmployeeSortColumns = ['joined_at', 'id', 'user_id']; 
+
+  if (keywords) {
+    andConditions.push({
+      [Op.or]: [
+        { '$user.name$': { [Op.like]: `%${keywords}%` } },
+        { '$user.email$': { [Op.like]: `%${keywords}%` } },
+        { '$user.phone_number$': { [Op.like]: `%${keywords}%` } },
+      ],
+    });
+  }
+
+  if (andConditions.length > 0) {
+    whereConditions[Op.and] = andConditions;
+  }
+
+  const finalSortBy = validEmployeeSortColumns.includes(sortBy) ? sortBy : 'joined_at';
+  const finalSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'; // Ensure valid ASC/DESC
+  const finalLimit = parseInt(limit, 10) || 10;
+  const finalOffset = parseInt(offset, 10) || 0;
+
   try {
-    const companyId = req.user.employee.company_id;
-    if (!companyId) {
-      return res.status(401).json({ message: 'Unauthorized. Company ID not found.' });
-    }
-    const employees = await Employee.findAll({
-      where: { company_id: companyId },
+    const results = await Employee.findAndCountAll({
+      where: whereConditions,
       include: [{
         model: User,
         as: 'user',
         attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
       }],
-      order: [['joined_at', 'ASC']],
+      limit: finalLimit,
+      offset: finalOffset,
+      order: [[finalSortBy, finalSortOrder]],
     });
 
-    res.status(200).json(employees);
+    const totalPages = Math.ceil(results.count / finalLimit);
+    const currentPage = Math.floor(finalOffset / finalLimit) + 1;
+
+    return res.json({
+      totalItems: results.count,
+      totalPages: totalPages,
+      currentPage: currentPage,
+      limit: finalLimit,
+      employees: results.rows, 
+    });
+
   } catch (error) {
-    logger.error('Error fetching employees by company:', error);
+    logger.error('Error fetching employees by company with pagination:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
