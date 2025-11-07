@@ -32,12 +32,7 @@ router.post('/auth/login', authController.loginClient);
 // -------------------- User Routes --------------------
 // Routes for managing the currently authenticated user's profile
 router.get('/user/me', authMiddleware, userController.getProfile);
-router.post(
-  '/user/upload-profile-image',
-  authMiddleware,
-  upload.single('profile_image'),
-  userController.uploadProfileImage
-);
+router.post('/user/upload-profile-image', authMiddleware, upload.single('profile_image'), userController.uploadProfileImage);
 router.put('/user/me', authMiddleware, userController.updateProfile);
 router.delete('/user/remove-profile-image', authMiddleware, userController.removeProfileImage);
 router.put('/user/update-password', authMiddleware, userController.updatePassword);
@@ -51,20 +46,10 @@ router.post(
 );
 router.get('/properties/', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.getProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
-router.patch(
-  '/properties/:id',
-  authMiddleware,
-  roleMiddleware('admin'),
-  propertyController.updateProperty
-);
+router.patch('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.updateProperty);
 router.delete('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.deleteProperty);
 router.post('/properties/upload-photo/:id', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
-router.delete(
-  '/properties/:propertyId/photos/:photoId',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  propertyController.deletePhoto
-);
+router.delete('/properties/:propertyId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.deletePhoto);
 
 // -------------------- Listing Routes --------------------
 router.get('/listings/public/search', listingController.publicSearchListings);
@@ -74,12 +59,7 @@ router.get('/listings/:id', listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
 router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getListingsByProperty);
-router.get(
-  '/listings/summary/properties',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  listingController.getPropertiesSummary
-);
+router.get('/listings/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getPropertiesSummary);
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
@@ -87,11 +67,7 @@ router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment);
-router.patch(
-  '/appointments/:id/feedback',
-  authMiddleware,
-  appointmentController.updateAppointmentFeedback
-);
+router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback);
 
 // -------------------- Employee Routes --------------------
 router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
@@ -107,13 +83,7 @@ router.get('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bo
 router.patch('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.updateBooking);
 router.delete('/bookings/:id', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.deleteBooking);
 router.get('/properties/:propertyId/bookings', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getBookingsByProperty);
-router.get(
-  '/bookings/summary/properties',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  bookingController.getPropertiesSummary
-);
-
+router.get('/bookings/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), bookingController.getPropertiesSummary);
 
 // -------------------- Tenant Routes --------------------
 router.get('/properties/:propertyId/tenants/available', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getAvailableTenants);
@@ -125,13 +95,7 @@ router.delete('/tenants/:id', authMiddleware, roleMiddleware('admin', 'agent'), 
 router.post('/tenants/:tenantId/photo', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), tenantController.uploadTenantphotos);
 router.delete('/tenants/:tenantId/photo/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.deleteTenantphotos);
 router.get('/properties/:propertyId/tenants', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getTenantsByProperty);
-router.get(
-  '/tenants/summary/properties',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  tenantController.getPropertiesSummary
-);
-
+router.get('/tenants/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), tenantController.getPropertiesSummary);
 
 // -------------------- Flats Routes --------------------
 router.post('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.createFlat);
@@ -139,7 +103,6 @@ router.get('/properties/:propertyId/flats', authMiddleware, roleMiddleware('admi
 router.get('/flats', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlats);
 router.get('/properties/:propertyId/listings/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlatsForListing);
 router.get('/properties/:propertyId/bookings/flats/available', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getAvailableFlatsForBooking);
-
 router.get('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getFlatById);
 router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.updateFlat);
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
@@ -154,13 +117,6 @@ router.get('/rents/tenants/:tenantId/total-due', authMiddleware, roleMiddleware(
 router.patch('/rents/bills/:billId/pay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsPaid);
 router.patch('/rents/bills/:billId/unpay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsUnpaid);
 router.get('/properties/:propertyId/tenants-with-due', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getTenantsWithDueByProperty);
-router.get(
-  '/rents/summary/properties',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  rentController.getPropertiesSummary
-);
-
-
+router.get('/rents/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getPropertiesSummary);
 
 module.exports = router;
