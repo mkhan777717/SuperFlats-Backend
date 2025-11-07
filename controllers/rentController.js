@@ -318,7 +318,7 @@ exports.getPropertiesSummary = async (req, res) => {
         const company_id = req.user.employee.company_id;
         
         const rentSummary = await db.Property.findAll({
-            where: { company_id: company_id },
+            where: { company_id: company_id ,is_managed: true},
             attributes: [
                 'id',
                 'name',

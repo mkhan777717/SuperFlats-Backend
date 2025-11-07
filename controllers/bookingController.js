@@ -405,7 +405,7 @@ exports.getPropertiesSummary = async (req, res) => {
     `);
 
     const propertiesSummary = await Property.findAll({
-      where: { company_id: company_id },
+      where: { company_id: company_id ,is_managed: true},
       attributes: [
         'id',
         'name',
