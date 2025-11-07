@@ -735,7 +735,7 @@ exports.getPropertiesSummary = async (req, res) => {
                 },
             ],
             group: ['Property.id', 'photos.id'], 
-            order: [['name', 'ASC']]
+            order: [['totalFlatCount', 'DESC']]
         });
         
         
