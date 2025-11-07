@@ -145,12 +145,7 @@ router.patch('/flats/:flatId', authMiddleware, roleMiddleware('admin', 'agent'),
 router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatController.deleteFlat);
 router.post('/flats/:flatId/photos', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), flatController.uploadFlatPhoto);
 router.delete('/flats/:flatId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.deleteFlatPhoto);
-router.get(
-  '/flats/summary/properties',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  flatController.getPropertiesSummary
-);
+router.get('/flats/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getPropertiesSummary);
 
 // -------------------- Rent Routes (Admin-Only) --------------------
 router.get('/rents/bills', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getAllRentBills);
