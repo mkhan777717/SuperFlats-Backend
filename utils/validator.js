@@ -36,9 +36,9 @@ const updateAppointmentStatusSchema = Joi.object({
 const patchAppointmentSchema = Joi.object({
   listing_id: Joi.number().integer().positive().optional(),
   scheduled_at: Joi.date().iso().optional(),
-  employee_id: Joi.number().integer().positive().optional().allow(null), // Allow un-assigning
+  employee_id: Joi.number().integer().positive().optional().allow(null),
   status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').optional(),
-  feedback: Joi.string().max(2000).optional(),
+  feedback: Joi.string().max(2000).optional().allow(null, ''),
 }).min(1).messages({
   'object.min': 'At least one field to update must be provided.'
 });
