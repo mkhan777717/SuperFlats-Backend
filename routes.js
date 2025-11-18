@@ -3,16 +3,16 @@ const router = express.Router();
 const multer = require('multer');
 
 // Import controllers
-const authController = require('./controllers/authController');
-const propertyController = require('./controllers/propertyController');
-const appointmentController = require('./controllers/appointmentController');
-const employeeController = require('./controllers/employeeController');
-const listingController = require('./controllers/listingController');
-const userController = require('./controllers/userController');
-const bookingController = require('./controllers/bookingController');
-const tenantController = require('./controllers/tenantController');
-const flatController = require('./controllers/flatController');
-const rentController = require('./controllers/rentController');
+const authController = require('./controllers/auth.controller');
+const propertyController = require('./controllers/property.controller');
+const appointmentController = require('./controllers/appointment.controller');
+const employeeController = require('./controllers/employee.controller');
+const listingController = require('./controllers/listing.controller');
+const userController = require('./controllers/user.controller');
+const bookingController = require('./controllers/booking.controller');
+const tenantController = require('./controllers/tenant.controller');
+const flatController = require('./controllers/flat.controller');
+const rentController = require('./controllers/rent.controller');
 
 
 // Import middlewares
