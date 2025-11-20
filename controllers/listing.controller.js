@@ -11,8 +11,21 @@ const Flat = db.Flat;
 const Photo = db.Photo;
 
 
+const getBounds = (lat, lng, radiusKm) => {
+    const latDelta = radiusKm / 111.045; // 1 degree of latitude ~ 111.045 km
+    const lngDelta = radiusKm / (111.320 * Math.cos(lat * (Math.PI / 180))); // 1 degree of longitude varies by latitude
+
+    return {
+        minLat: lat - latDelta,
+        maxLat: lat + latDelta,
+        minLng: lng - lngDelta,
+        maxLng: lng + lngDelta,
+    };
+};
+
 /**
- * Provides a public-facing search for all active listings with comprehensive filters.
+ * Provides a public-facing search for all active listings with comprehensive filters,
+ * including keywords, city, price, type, and landmarks.
  */
 exports.publicSearchListings = async (req, res) => {
     try {
@@ -27,28 +40,84 @@ exports.publicSearchListings = async (req, res) => {
             sortOrder,
             limit = 12,
             offset = 0,
+            landmark_coords, // NEW: Landmark coordinates and radius
         } = req.query;
-
+        let finalType = type;
+        if(type=='3BHK_PLUS')
+        {
+            finalType='3BHK+';
+        }
         const listingWhere = { status: 'active' }; 
         const propertyWhere = {};
         const flatWhere = {};
-
+        
+        // -------------------------
+        // 1. PRICE FILTER
+        // -------------------------
         if (min_rent || max_rent) {
             listingWhere.monthly_rent = {};
             if (min_rent) listingWhere.monthly_rent[Op.gte] = parseFloat(min_rent);
             if (max_rent) listingWhere.monthly_rent[Op.lte] = parseFloat(max_rent);
         }
 
+        // -------------------------
+        // 2. CITY FILTER
+        // -------------------------
         if (city) {
             propertyWhere.city = { [Op.like]: `%${city}%` };
         }
 
-        if (type) {
-            flatWhere.type = type;
+        // -------------------------
+        // 3. PROPERTY TYPE FILTER
+        // -------------------------
+        if (finalType) {
+            flatWhere.type = finalType;
         }
 
+        // -------------------------
+        // 4. LANDMARK SEARCH (GEOSPATIAL FILTER) - NEW LOGIC
+        // -------------------------
+       if (landmark_coords) {
+            try {
+                const coords = JSON.parse(landmark_coords);
+                const landmarkConditions = coords.map(coord => {
+                    const { lat, lng, radius_km } = coord;
+                    if (!lat || !lng || !radius_km) return null;
+
+                    const bounds = getBounds(parseFloat(lat), parseFloat(lng), parseFloat(radius_km));
+
+                    // FIX: Define the latitude and longitude conditions explicitly.
+                    // Sequelize will then correctly map these column names to the 'flat->property' alias 
+                    // and apply them correctly, likely in the main WHERE clause.
+                    return {
+                        latitude: { [Op.between]: [bounds.minLat, bounds.maxLat] },
+                        longitude: { [Op.between]: [bounds.minLng, bounds.maxLng] },
+                    };
+                }).filter(c => c !== null);
+
+                if (landmarkConditions.length > 0) {
+                    // Combine all landmark conditions using OR, so the property must be near AT LEAST ONE landmark.
+                    // Each item in landmarkConditions is implicitly ANDed (latitude AND longitude).
+                    // This entire array is then ORed.
+                    propertyWhere[Op.or] = landmarkConditions;
+                }
+                
+                // ... (rest of the logic for clearing propertyWhere.city remains)
+                if (propertyWhere[Op.or]) {
+                     delete propertyWhere.city;
+                }
+
+            } catch (e) {
+                logger.warn('Failed to parse landmark_coords:', e);
+            }
+        }
+
+        // -------------------------
+        // 5. KEYWORD SEARCH
+        // -------------------------
         if (keywords) {
             const keywordQuery = { [Op.like]: `%${keywords}%` };
+            // Note: Sequelize allows using Op.or inside listingWhere to search on associations
             listingWhere[Op.or] = [
                 { title: keywordQuery },
                 { description: keywordQuery },
@@ -58,9 +127,12 @@ exports.publicSearchListings = async (req, res) => {
             ];
         }
 
+        // -------------------------
+        // 6. SORTING AND PAGINATION
+        // -------------------------
         const validSortColumns = ['created_at', 'monthly_rent'];
         const reqSortBy = sort_by || sortBy || 'created_at'; 
-        const reqSortOrder = sortOrder || sortOrder || 'DESC';
+        const reqSortOrder = sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -68,6 +140,9 @@ exports.publicSearchListings = async (req, res) => {
             ? [[db.sequelize.literal('CAST(monthly_rent AS DECIMAL(12,2))'), finalSortOrder]]
             : [[finalSortBy, finalSortOrder]];
 
+        // -------------------------
+        // 7. EXECUTE QUERY
+        // -------------------------
         const { count, rows } = await Listing.findAndCountAll({
             where: listingWhere,
             include: [
@@ -76,19 +151,19 @@ exports.publicSearchListings = async (req, res) => {
                     as: 'flat',
                     required: true,
                     where: flatWhere,
-                    attributes: ['id', 'type', 'area_sqft', 'unit_number'],
+                    
                     include: [
                         {
                             model: Property,
                             as: 'property',
                             required: true,
-                            where: propertyWhere,
-                            attributes: ['id', 'name', 'city', 'address'],
+                            where: propertyWhere, // Property filtering applied here
+                            // Make sure 'latitude' and 'longitude' are in your Property model
+                           
                         },
                         {
                             model: Photo,
                             as: 'photos',
-                            attributes: ['id', 'photo_url', 'is_primary'],
                             separate: true,
                             order: [['is_primary', 'DESC']],
                         },
@@ -107,6 +182,9 @@ exports.publicSearchListings = async (req, res) => {
             subQuery: false,
         });
 
+        // -------------------------
+        // 8. RESPONSE
+        // -------------------------
         res.status(200).json({
             totalItems: count,
             totalPages: Math.ceil(count / limit),
