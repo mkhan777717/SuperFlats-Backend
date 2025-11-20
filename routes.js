@@ -13,6 +13,8 @@ const bookingController = require('./controllers/booking.controller');
 const tenantController = require('./controllers/tenant.controller');
 const flatController = require('./controllers/flat.controller');
 const rentController = require('./controllers/rent.controller');
+const favoritesController = require('./controllers/favorites.controller');
+const placesProxy = require('./controllers/places-proxy.controller');
 
 
 // Import middlewares
@@ -38,12 +40,7 @@ router.delete('/user/remove-profile-image', authMiddleware, userController.remov
 router.put('/user/update-password', authMiddleware, userController.updatePassword);
 
 // -------------------- Property Routes --------------------
-router.post(
-  '/properties',
-  authMiddleware,
-  roleMiddleware('admin', 'agent'),
-  propertyController.createProperty
-);
+router.post('/properties',authMiddleware,roleMiddleware('admin', 'agent'),propertyController.createProperty);
 router.get('/properties/', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.getProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
 router.patch('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.updateProperty);
@@ -118,5 +115,13 @@ router.patch('/rents/bills/:billId/pay', authMiddleware, roleMiddleware('admin',
 router.patch('/rents/bills/:billId/unpay', authMiddleware, roleMiddleware('admin', 'agent'), rentController.markBillAsUnpaid);
 router.get('/properties/:propertyId/tenants-with-due', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getTenantsWithDueByProperty);
 router.get('/rents/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getPropertiesSummary);
+
+// -------------------- Favorites Routes --------------------
+router.post('/favorites/toggle/:listingId', authMiddleware, favoritesController.toggleFavorite);
+router.get('/favorites', authMiddleware, favoritesController.getFavorites);
+
+// -------------------- External Places Proxy --------------------
+router.post('/places/details', placesProxy.getPlaceDetails);
+router.get('/places/search/suggestions', placesProxy.getPlaceSuggestions);
 
 module.exports = router;
