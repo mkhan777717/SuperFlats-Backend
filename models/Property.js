@@ -85,7 +85,15 @@ module.exports = (sequelize) => {
         this.setDataValue('amenities', JSON.stringify(val));
       }
     },
-
+    
+    latitude: {
+      type: DataTypes.DOUBLE,
+      allowNull: true,
+    },
+    longitude: {
+      type: DataTypes.DOUBLE,
+      allowNull: true,
+    },
     is_managed: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
