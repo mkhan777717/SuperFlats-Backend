@@ -187,7 +187,7 @@ exports.getFlatsByProperty = async (req, res) => {
             where: whereConditions,
             include: [
                 { model: Property, as: 'property' },
-                { model: Photo, as: 'photos', where: { is_primary: true }, required: false, separate: true },
+                { model: Photo, as: 'photos', required: false, separate: true },
             ],
             limit: finalLimit,
             offset: finalOffset,
