@@ -30,6 +30,7 @@ router.post('/auth/admin/register', authController.registerAdmin);
 router.post('/auth/admin/login', authController.loginAdmin);
 router.post('/auth/register', authController.registerClient);
 router.post('/auth/login', authController.loginClient);
+router.post('/auth/refresh',authMiddleware, authController.tokenRefresh); 
 
 // -------------------- User Routes --------------------
 // Routes for managing the currently authenticated user's profile
@@ -64,7 +65,8 @@ router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment);
-router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback);
+// FIX: Corrected controller reference for feedback update
+router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback); 
 
 // -------------------- Employee Routes --------------------
 router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
@@ -120,9 +122,8 @@ router.get('/rents/summary/properties', authMiddleware, roleMiddleware('admin', 
 router.post('/favorites/toggle/:listingId', authMiddleware, favoritesController.toggleFavorite);
 router.get('/favorites', authMiddleware, favoritesController.getFavorites);
 
-// -------------------- Google Maps --------------------
+// -------------------- External Places Proxy --------------------
 router.post('/places/details', placesProxy.getPlaceDetails);
 router.get('/places/search/suggestions', placesProxy.getPlaceSuggestions);
-router.get('/places/map/image', placesProxy.mapToImageUrl);
 
-module.exports = router;
+    module.exports = router;

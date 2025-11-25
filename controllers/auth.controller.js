@@ -1,30 +1,54 @@
 const db = require('../models');
+const crypto = require('crypto');
 const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { userRegistrationSchema } = require('../utils/validator');
-const { uploadFile, deleteFile } = require('../utils/fileService');
+
+
 const User = db.User;
 const Company = db.Company; 
 const Employee = db.Employee; 
+const RefreshToken = db.RefreshToken; 
 const sequelize = db.sequelize; 
 
-const generateToken = (id, role, company_id) => {
+const hashToken = (token) => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+const generateAccessToken = (id, role, company_id) => {
     const payload = { id, role };
     if (company_id) {
         payload.company_id = company_id;
     }
     return jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: '1095d', // Token valid for 3 years
+        expiresIn: '7d', 
     });
 };
+
+const generateRefreshToken = (id) => {
+    return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, { 
+        expiresIn: '90d',
+    });
+};
+//TODO: for now the refresh token is supports only one active token per user
+const saveRefreshToken = async (userId, token) => {
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 90);
+    await RefreshToken.destroy({ where: { userId: userId } });
+    await RefreshToken.create({
+        token: hashToken(token),
+        userId: userId,
+        expiryDate: expiryDate,
+    });
+}
+
+
 
 exports.registerAdmin = async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const { name, email, password, phone_number } = req.body;
         const role = 'admin';
-
 
         const { error } = userRegistrationSchema.validate(req.body);
         if (error) {
@@ -41,10 +65,7 @@ exports.registerAdmin = async (req, res) => {
         }
 
         const phoneNumberExists = await User.findOne({
-            where: {
-                phone_number,
-                role: ['admin', 'agent']
-            },
+            where: { phone_number, role: ['admin', 'agent'] },
             transaction: t
         });
         if (phoneNumberExists) {
@@ -60,10 +81,7 @@ exports.registerAdmin = async (req, res) => {
         }, { transaction: t });
 
         const newUser = await User.create({
-            name,
-            email,
-            phone_number,
-            role,
+            name, email, phone_number, role,
             password: hashedPassword,
             company_id: newCompany.id 
         }, { transaction: t });
@@ -74,7 +92,11 @@ exports.registerAdmin = async (req, res) => {
         }, { transaction: t });
 
         await t.commit();
-        const token = generateToken(newUser.id, newUser.role, newCompany.id);
+        
+        const accessToken = generateAccessToken(newUser.id, newUser.role, newCompany.id);
+        const refreshToken = generateRefreshToken(newUser.id);
+        await saveRefreshToken(newUser.id, refreshToken); 
+
         logger.info(`New admin registered successfully: ${newUser.email}`);
         res.status(201).json({
             id: newUser.id,
@@ -83,7 +105,8 @@ exports.registerAdmin = async (req, res) => {
             phone_number: newUser.phone_number,
             role: newUser.role,
             company_id: newCompany.id,
-            token,
+            accessToken, 
+            refreshToken, 
         });
 
     } catch (error) {
@@ -93,7 +116,6 @@ exports.registerAdmin = async (req, res) => {
     }
 };
 
-// Register a new user with a hardcoded 'client' role
 exports.registerClient = async (req, res) => {
     try {
         const { name, email, password, phone_number } = req.body;
@@ -112,10 +134,7 @@ exports.registerClient = async (req, res) => {
         }
 
         const phoneNumberExists = await User.findOne({
-            where: {
-                phone_number,
-                role: 'client'
-            }
+            where: { phone_number, role: 'client' }
         });
         if (phoneNumberExists) {
             logger.warn(`Client registration failed: Phone number '${phone_number}' is already in use by a client.`);
@@ -125,14 +144,14 @@ exports.registerClient = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         const newUser = await User.create({
-            name,
-            email,
-            phone_number,
-            role,
+            name, email, phone_number, role,
             password: hashedPassword,
         });
 
-        const token = generateToken(newUser.id, newUser.role);
+        
+        const accessToken = generateAccessToken(newUser.id, newUser.role);
+        const refreshToken = generateRefreshToken(newUser.id);
+        await saveRefreshToken(newUser.id, refreshToken); 
 
         logger.info(`New client registered successfully: ${newUser.email}`);
         res.status(201).json({
@@ -141,7 +160,8 @@ exports.registerClient = async (req, res) => {
             email: newUser.email,
             phone_number: newUser.phone_number,
             role: newUser.role,
-            token,
+            accessToken,
+            refreshToken,
         });
 
     } catch (error) {
@@ -150,7 +170,6 @@ exports.registerClient = async (req, res) => {
     }
 };
 
-// Log in an admin user
 exports.loginAdmin = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -175,7 +194,10 @@ exports.loginAdmin = async (req, res) => {
         const employee = await Employee.findOne({ where: { user_id: user.id } });
         const companyId = employee ? employee.company_id : null;
 
-        const token = generateToken(user.id, user.role, companyId);
+        
+        const accessToken = generateAccessToken(user.id, user.role, companyId);
+        const refreshToken = generateRefreshToken(user.id);
+        await saveRefreshToken(user.id, refreshToken); 
 
         logger.info(`Admin/agent logged in successfully: ${user.email}`);
         res.status(200).json({
@@ -185,7 +207,8 @@ exports.loginAdmin = async (req, res) => {
             phone_number: user.phone_number,
             role: user.role,
             company_id: companyId,
-            token,
+            accessToken,
+            refreshToken,
         });
 
     } catch (error) {
@@ -194,7 +217,6 @@ exports.loginAdmin = async (req, res) => {
     }
 };
 
-// Log in a client user
 exports.loginClient = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -216,7 +238,10 @@ exports.loginClient = async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        const token = generateToken(user.id, user.role);
+        
+        const accessToken = generateAccessToken(user.id, user.role);
+        const refreshToken = generateRefreshToken(user.id);
+        await saveRefreshToken(user.id, refreshToken); 
 
         logger.info(`Client logged in successfully: ${user.email}`);
         res.status(200).json({
@@ -225,11 +250,78 @@ exports.loginClient = async (req, res) => {
             email: user.email,
             phone_number: user.phone_number,
             role: user.role,
-            token,
+            accessToken,
+            refreshToken,
         });
 
     } catch (error) {
         logger.error(`Error during client login for email ${req.body.email}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+/**
+ * NEW ENDPOINT: Endpoint to refresh the Access Token using a valid Refresh Token.
+ * Implements token rotation for security.
+ */
+exports.tokenRefresh = async (req, res) => {
+    const { refreshToken: incomingToken } = req.body;
+
+    if (!incomingToken) {
+        return res.status(400).json({ message: 'Refresh Token required' });
+    }
+
+    try {
+        
+        const decoded = jwt.verify(incomingToken, process.env.JWT_REFRESH_SECRET);
+        const userId = decoded.id;
+
+        
+     const hashedIncoming = hashToken(incomingToken);
+
+    const storedToken = await RefreshToken.findOne({
+    where: { token: hashedIncoming, userId }
+    });
+
+
+        if (!storedToken) {
+            
+            logger.warn(`[Security] Refresh Token not found/invalid for user ${userId}`);
+            return res.status(401).json({ message: 'Invalid Refresh Token' });
+        }
+
+        
+        if (storedToken.expiryDate < new Date()) {
+            await RefreshToken.destroy({ where: { id: storedToken.id } }); 
+            return res.status(401).json({ message: 'Refresh token was expired. Please make a new signin request' });
+        }
+
+        
+        
+        await RefreshToken.destroy({ where: { id: storedToken.id } });
+        
+
+        
+        const user = await User.findByPk(userId);
+        let companyId = null;
+        if (user.role === 'admin' || user.role === 'agent') {
+            const employee = await Employee.findOne({ where: { user_id: user.id } });
+            companyId = employee ? employee.company_id : null;
+        }
+
+        
+        const newAccessToken = generateAccessToken(user.id, user.role, companyId);
+        const newRefreshToken = generateRefreshToken(user.id);
+        await saveRefreshToken(user.id, newRefreshToken); 
+
+        logger.info(`Token refreshed successfully for user ID: ${user.id}`);
+        res.status(200).json({
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+        });
+
+    } catch (error) {
+        logger.error('Error during token refresh (jwt verification failed):', error);
+        res.status(401).json({ message: 'Invalid or expired Refresh Token' });
     }
 };
