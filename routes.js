@@ -65,8 +65,7 @@ router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
 router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment);
-// FIX: Corrected controller reference for feedback update
-router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback); 
+router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback);
 
 // -------------------- Employee Routes --------------------
 router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
@@ -122,8 +121,9 @@ router.get('/rents/summary/properties', authMiddleware, roleMiddleware('admin', 
 router.post('/favorites/toggle/:listingId', authMiddleware, favoritesController.toggleFavorite);
 router.get('/favorites', authMiddleware, favoritesController.getFavorites);
 
-// -------------------- External Places Proxy --------------------
+// -------------------- Google Maps --------------------
 router.post('/places/details', placesProxy.getPlaceDetails);
 router.get('/places/search/suggestions', placesProxy.getPlaceSuggestions);
+router.get('/places/map/image', placesProxy.mapToImageUrl);
 
-    module.exports = router;
+module.exports = router;
