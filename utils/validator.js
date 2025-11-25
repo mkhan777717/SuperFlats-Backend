@@ -63,7 +63,9 @@ const createPropertySchema = Joi.object({
   area_sqft: Joi.number().positive().min(1).optional(),
   parking: Joi.boolean().optional(),
   amenities: Joi.array().items(Joi.string()).optional(),
-  is_managed: Joi.boolean().optional()
+  is_managed: Joi.boolean().optional(),
+  latitude: Joi.number().optional(),
+  longitude: Joi.number().optional(),
 });
 
 

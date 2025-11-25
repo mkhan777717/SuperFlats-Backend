@@ -94,3 +94,18 @@ exports.getPlaceSuggestions = async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch suggestions from external service.' });
     }
 };
+
+exports.mapToImageUrl = (req,res) => {
+    const { latitude, longitude, zoom , size  } = req.query;
+
+    if (!latitude || !longitude) {
+        return res.status(400).json({ message: 'Missing latitude or longitude.' });
+    }
+
+    const imageUrl = generateStaticMapUrl(latitude, longitude, zoom, size);
+    res.status(200).json({ imageUrl });
+};
+
+function generateStaticMapUrl(latitude, longitude, zoom, size) {
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=${zoom}&size=${size}&key=${GOOGLE_API_KEY}`;
+}

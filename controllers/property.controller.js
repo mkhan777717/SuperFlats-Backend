@@ -35,6 +35,7 @@ exports.createProperty = async (req, res) => {
       name, description, address, city, state, zipcode,
       count_1rk, count_1bhk, count_2bhk, count_3bhk, count_3bhk_plus,
       area_sqft, parking, amenities, is_managed,
+      latitude, longitude 
     } = req.body;
 
     const newProperty = await Property.create({
@@ -54,6 +55,8 @@ exports.createProperty = async (req, res) => {
       parking,
       amenities,
       is_managed,
+      latitude,    
+      longitude,   
     }, { transaction });
 
     await transaction.commit();

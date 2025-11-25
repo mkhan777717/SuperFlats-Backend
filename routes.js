@@ -120,8 +120,9 @@ router.get('/rents/summary/properties', authMiddleware, roleMiddleware('admin', 
 router.post('/favorites/toggle/:listingId', authMiddleware, favoritesController.toggleFavorite);
 router.get('/favorites', authMiddleware, favoritesController.getFavorites);
 
-// -------------------- External Places Proxy --------------------
+// -------------------- Google Maps --------------------
 router.post('/places/details', placesProxy.getPlaceDetails);
 router.get('/places/search/suggestions', placesProxy.getPlaceSuggestions);
+router.get('/places/map/image', placesProxy.mapToImageUrl);
 
 module.exports = router;
