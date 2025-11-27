@@ -1,11 +1,12 @@
-// firebase.js
 const admin = require('firebase-admin');
-const serviceAccount = require('../serviceAccountKey.json'); // Make sure this file is not public
+const serviceAccount = require('../serviceAccountKey.json'); // Path to your key
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'super-flats.firebasestorage.app' // Replace with your bucket URL
-});
 
-const bucket = admin.storage().bucket();
-module.exports = bucket;
+if (admin.apps.length === 0) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: 'super-flats.firebasestorage.app' 
+    });
+}
+
+module.exports = admin;

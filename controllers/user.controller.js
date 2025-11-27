@@ -187,3 +187,34 @@ exports.removeProfileImage = async (req, res) => {
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
+exports.registerFcmToken = async (req, res) => {
+    const userId = req.user.id; 
+    const { fcmToken } = req.body; 
+
+    // 1. Basic validation
+    if (!fcmToken) {
+        logger.warn(`FCM token registration failed for user ${userId}: Missing token in request body.`);
+        return res.status(400).json({ message: 'FCM Token is required.' });
+    }
+
+    try {
+        // 2. Find the user
+        const user = await User.findByPk(userId);
+
+        if (!user) {
+            logger.error(`FCM token registration failed: User ID ${userId} not found.`);
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // 3. Update the fcm_token field
+        user.fcm_token = fcmToken;
+        await user.save(); 
+
+        logger.info(`FCM Token registered/updated for User ID: ${userId}.`);
+        return res.status(200).json({ message: 'FCM Token successfully registered.' });
+
+    } catch (error) {
+        logger.error(`Error registering FCM Token for User ID ${userId}:`, error);
+        return res.status(500).json({ error: 'Internal Server Error during token registration.' });
+    }
+};

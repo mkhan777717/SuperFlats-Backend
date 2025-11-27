@@ -30,7 +30,7 @@ router.post('/auth/admin/register', authController.registerAdmin);
 router.post('/auth/admin/login', authController.loginAdmin);
 router.post('/auth/register', authController.registerClient);
 router.post('/auth/login', authController.loginClient);
-router.post('/auth/refresh',authMiddleware, authController.tokenRefresh); 
+router.post('/auth/refresh', authController.tokenRefresh); 
 
 // -------------------- User Routes --------------------
 // Routes for managing the currently authenticated user's profile
@@ -39,6 +39,7 @@ router.post('/user/upload-profile-image', authMiddleware, upload.single('profile
 router.put('/user/me', authMiddleware, userController.updateProfile);
 router.delete('/user/remove-profile-image', authMiddleware, userController.removeProfileImage);
 router.put('/user/update-password', authMiddleware, userController.updatePassword);
+router.post('/user/register-token',authMiddleware,userController.registerFcmToken);
 
 // -------------------- Property Routes --------------------
 router.post('/properties',authMiddleware,roleMiddleware('admin', 'agent'),propertyController.createProperty);
