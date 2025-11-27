@@ -12,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
     }, {
-        tableName: "refresh_tokens",
+      tableName: "refresh_tokens",
       timestamps: true,
     });
   

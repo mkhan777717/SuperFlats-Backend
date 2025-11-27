@@ -34,7 +34,7 @@ const generateRefreshToken = (id) => {
 const saveRefreshToken = async (userId, token) => {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 90);
-    await RefreshToken.destroy({ where: { userId: userId } });
+    await RefreshToken.destroy({ where: { token: hashToken(token) } }); 
     await RefreshToken.create({
         token: hashToken(token),
         userId: userId,
