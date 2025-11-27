@@ -1,4 +1,4 @@
-const admin = require('../config/firebase'); 
+const { admin } = require("../config/firebase");
 const logger = require('./logger'); 
 
 const ADMIN_TOPIC = 'admin_alerts';

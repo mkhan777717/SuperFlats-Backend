@@ -1,7 +1,7 @@
 // utils/fileService.js
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
-const bucket = require("../config/firebase");
+const { bucket } = require("../config/firebase");
 const uploadFile = async (file) => {
     if (!file) return "";
 
