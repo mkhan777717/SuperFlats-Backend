@@ -7,7 +7,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
     volumes:
-      - ./super_flats_new.sql:/docker-entrypoint-initdb.d/super_flats_new.sql
+      # - ./super_flats_new.sql:/docker-entrypoint-initdb.d/super_flats_new.sql
       - mysql_data:/var/lib/mysql
     ports:
       - "3306:3306"
@@ -32,7 +32,12 @@ services:
       - .env
     environment:
       DB_HOST: db
-    command: ["npm", "start"]
+    command: >
+      sh -c "
+      npx sequelize-cli db:migrate &&
+      npm start
+      "
+
     logging:
       options:
         max-size: "10m" 
