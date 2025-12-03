@@ -7,6 +7,19 @@ const uploadFile = async (file) => {
 
     console.log(`[UPLOAD] Processing file: ${file.originalname}, type: ${file.mimetype}, size: ${file.size} bytes`);
 
+    const maxFileSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxFileSize) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        console.error(`[UPLOAD ERROR] File size ${fileSizeMB}MB exceeds maximum limit of 50MB`);
+        throw new Error(`File size too large (${fileSizeMB}MB). Maximum allowed size is 50MB.`);
+    }
+
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+        console.error(`[UPLOAD ERROR] Invalid file type: ${file.mimetype}`);
+        throw new Error(`Invalid file type (${file.mimetype}). Only JPEG, PNG, GIF, and WebP images are allowed.`);
+    }
+
     // Dynamically adjust quality based on file size:
     // - <100KB → 90% quality
     // - 100KB-500KB → 70%
