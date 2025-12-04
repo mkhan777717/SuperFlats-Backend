@@ -14,11 +14,6 @@ const uploadFile = async (file) => {
         throw new Error(`File size too large (${fileSizeMB}MB). Maximum allowed size is 50MB.`);
     }
 
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-        console.error(`[UPLOAD ERROR] Invalid file type: ${file.mimetype}`);
-        throw new Error(`Invalid file type (${file.mimetype}). Only JPEG, PNG, GIF, and WebP images are allowed.`);
-    }
 
     // Dynamically adjust quality based on file size:
     // - <100KB → 90% quality
