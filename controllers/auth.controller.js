@@ -21,7 +21,7 @@ const generateAccessToken = (id, role, company_id) => {
         payload.company_id = company_id;
     }
     return jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: '30d', //for now 30 days untill we implement it in our frontend
+        expiresIn: '360d', //for now 360 days untill we implement it in our frontend
     });
 };
 

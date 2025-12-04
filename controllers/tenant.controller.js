@@ -88,7 +88,7 @@ exports.getTenantById = async (req, res) => {
         company_id: companyId
       },
       include: [
-        { model: Property, as: 'property' }, 
+        { model: Property, as: 'property' },
         {
           model: Booking,
           as: 'bookings',
@@ -139,7 +139,7 @@ exports.getAllTenants = async (req, res) => {
     const {
       limit = 10,
       offset = 0,
-      keywords, 
+      keywords,
       status,
       propertyId,
       sortBy = 'created_at',
@@ -180,7 +180,7 @@ exports.getAllTenants = async (req, res) => {
       where: finalWhere,
 
       include: [
-        { model: Property, as: 'property', attributes: ['id', 'name'] }, 
+        { model: Property, as: 'property', attributes: ['id', 'name'] },
         {
           model: Photo,
           as: 'photos',
@@ -379,7 +379,7 @@ exports.getAvailableTenants = async (req, res) => {
       where: {
         status: 'available',
         company_id: company_id,
-        property_id: propertyId, 
+        property_id: propertyId,
       },
       order: [['name', 'ASC']],
     });
@@ -503,89 +503,90 @@ exports.deleteTenantphotos = async (req, res) => {
 
 
 exports.getPropertiesSummary = async (req, res) => {
-    try {
-        if (!req.user || !req.user.employee || !req.user.employee.company_id) {
-            return res.status(403).json({ message: 'User is not associated with a company.' });
-        }
-
-        const company_id = req.user.employee.company_id;
-        
-        const twoMonthsFromNow = new Date();
-        twoMonthsFromNow.setDate(twoMonthsFromNow.getDate() + 60);
-
-        const twoMonthsFromNowIso = twoMonthsFromNow.toISOString();
-        const nowIso = new Date().toISOString();
-
-        const propertiesSummary = await Property.findAll({
-            where: { company_id: company_id, is_managed: true },
-            attributes: [
-                'id',
-                'name',
-                
-                [
-                    db.sequelize.fn('COUNT', db.sequelize.fn('DISTINCT', db.sequelize.col('tenants.id'))),
-                    'totalTenantCount'
-                ],
-
-                [
-                    db.sequelize.literal(`COUNT(DISTINCT CASE WHEN (\`tenants->bookings\`.\`end_date\` <= '${twoMonthsFromNowIso}' AND \`tenants->bookings\`.\`end_date\` > '${nowIso}') THEN \`tenants\`.\`id\` ELSE NULL END)`),
-                    'expiringBookingCount'
-                ],
-            ],
-            include: [
-                {
-                    model: db.Tenant, 
-                    as: 'tenants',
-                    attributes: [], 
-                    required: false, 
-                    include: [{
-                        model: db.Booking, 
-                        as: 'bookings', 
-                        attributes: [],
-                        required: false, 
-                        where: { status: 'active' }
-                    }]
-                },
-                {
-                    model: Photo,
-                    as: 'photos',
-                    required: false,
-                    where: { imageable_type: 'Property', is_primary: true } 
-                },
-            ],
-            group: ['Property.id', 'photos.id'], 
-            order: [['name', 'ASC']]
-        });
-
-
-        const finalSummary = propertiesSummary.reduce((acc, property) => {
-            const propertyId = property.id;
-            let existingEntry = acc.find(p => p.id === propertyId);
-            
-            const currentPhotoObject = Array.isArray(property.photos) && property.photos.length > 0
-                ? property.photos[0]
-                : property.photos;
-
-            if (!existingEntry) {
-                existingEntry = {
-                    id: property.id,
-                    name: property.name,
-                    photos: currentPhotoObject ? [currentPhotoObject] : [], 
-                    
-                    totalTenantCount: parseInt(property.dataValues.totalTenantCount, 10) || 0,
-                    expiringBookingCount: parseInt(property.dataValues.expiringBookingCount, 10) || 0,
-                };
-                acc.push(existingEntry);
-            } 
-            
-            return acc;
-        }, []);
-
-
-        res.status(200).json({ properties: finalSummary });
-
-    } catch (error) {
-        logger.error('Error fetching property tenant summary:', error);
-        res.status(500).json({ error: 'Internal server error.' });
+  try {
+    if (!req.user || !req.user.employee || !req.user.employee.company_id) {
+      return res.status(403).json({ message: 'User is not associated with a company.' });
     }
+
+    const company_id = req.user.employee.company_id;
+
+    const twoMonthsFromNow = new Date();
+    twoMonthsFromNow.setDate(twoMonthsFromNow.getDate() + 60);
+
+    const twoMonthsFromNowIso = twoMonthsFromNow.toISOString();
+    const nowIso = new Date().toISOString();
+
+    const propertiesSummary = await Property.findAll({
+      where: { company_id: company_id, is_managed: true },
+      attributes: [
+        'id',
+        'name',
+
+        [
+          db.sequelize.fn('COUNT', db.sequelize.fn('DISTINCT', db.sequelize.col('tenants.id'))),
+          'totalTenantCount'
+        ],
+
+        [
+          db.sequelize.literal(`COUNT(DISTINCT CASE WHEN (\`tenants->bookings\`.\`end_date\` <= '${twoMonthsFromNowIso}' AND \`tenants->bookings\`.\`end_date\` > '${nowIso}') THEN \`tenants\`.\`id\` ELSE NULL END)`),
+          'expiringBookingCount'
+        ],
+      ],
+      include: [
+        {
+          model: db.Tenant,
+          as: 'tenants',
+          attributes: [],
+          required: false,
+          include: [{
+            model: db.Booking,
+            as: 'bookings',
+            attributes: [],
+            required: false,
+            where: { status: 'active' }
+          }]
+        },
+        {
+          model: Photo,
+          as: 'photos',
+          required: false,
+          where: { imageable_type: 'Property', is_primary: true }
+        },
+      ],
+      group: ['Property.id', 'photos.id'],
+      order: [['name', 'ASC']]
+    });
+
+
+    const finalSummary = propertiesSummary.reduce((acc, property) => {
+      const propertyId = property.id;
+      let existingEntry = acc.find(p => p.id === propertyId);
+
+      // This logic correctly handles the photo object/array from Sequelize
+      const photosData = property.photos || [];
+      const currentPhotoObject = Array.isArray(photosData) ? photosData[0] : photosData;
+
+      if (!existingEntry) {
+        existingEntry = {
+          id: property.id,
+          name: property.name,
+          // This check ensures you get [] for no photos, not [[]]
+          photos: currentPhotoObject && currentPhotoObject.id ? [currentPhotoObject] : [],
+
+          totalTenantCount: parseInt(property.dataValues.totalTenantCount, 10) || 0,
+          expiringBookingCount: parseInt(property.dataValues.expiringBookingCount, 10) || 0,
+        };
+        acc.push(existingEntry);
+      }
+
+      return acc;
+    }, []);
+
+
+    res.status(200).json({ properties: finalSummary });
+
+  } catch (error) {
+    logger.error('Error fetching property tenant summary:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 };
