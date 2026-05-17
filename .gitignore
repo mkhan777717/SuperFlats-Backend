@@ -24,3 +24,8 @@ coverage
 /logs
 
 serviceAccountKey.json
+
+#server
+schema.sql
+/nginx
+/certbot
