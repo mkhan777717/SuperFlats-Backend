@@ -5,8 +5,8 @@ const userRegistrationSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  phone_number: Joi.string().pattern(/^[0-9]{10}$/).required().messages({
-    'string.pattern.base': 'Phone number must be exactly 10 digits.'
+  phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
+    'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
 });
 
@@ -109,7 +109,7 @@ const updateBookingSchema = Joi.object({
   monthly_rent: Joi.number().precision(2).positive().optional(),
   security_amount: Joi.number().precision(2).min(0).optional(),
   security_type: Joi.string().valid('lease', 'deposit').optional(),
-  status: Joi.string().valid('active', 'ended', 'cancelled').optional(), 
+  status: Joi.string().valid('active', 'ended', 'cancelled').optional(),
 }).min(1);
 
 
