@@ -15,6 +15,7 @@ const flatController = require('./controllers/flat.controller');
 const rentController = require('./controllers/rent.controller');
 const favoritesController = require('./controllers/favorites.controller');
 const placesProxy = require('./controllers/places-proxy.controller');
+const dashboardController = require('./controllers/dashboard.controller');
 
 
 // Import middlewares
@@ -30,7 +31,7 @@ router.post('/auth/admin/register', authController.registerAdmin);
 router.post('/auth/admin/login', authController.loginAdmin);
 router.post('/auth/register', authController.registerClient);
 router.post('/auth/login', authController.loginClient);
-router.post('/auth/refresh', authController.tokenRefresh); 
+router.post('/auth/refresh', authController.tokenRefresh);
 
 // -------------------- User Routes --------------------
 // Routes for managing the currently authenticated user's profile
@@ -39,17 +40,17 @@ router.post('/user/upload-profile-image', authMiddleware, upload.single('profile
 router.put('/user/me', authMiddleware, userController.updateProfile);
 router.delete('/user/remove-profile-image', authMiddleware, userController.removeProfileImage);
 router.put('/user/update-password', authMiddleware, userController.updatePassword);
-router.post('/user/register-token',authMiddleware,userController.registerFcmToken);
+router.post('/user/register-token', authMiddleware, userController.registerFcmToken);
 
 // -------------------- Property Routes --------------------
-router.post('/properties',authMiddleware,roleMiddleware('admin', 'agent'),propertyController.createProperty);
+router.post('/properties', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.createProperty);
 router.get('/properties/', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.getProperties);
 router.get('/properties/:id', propertyController.getPropertyById);
 router.patch('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.updateProperty);
 router.delete('/properties/:id', authMiddleware, roleMiddleware('admin'), propertyController.deleteProperty);
 router.post('/properties/upload-photo/:id', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
 router.delete('/properties/:propertyId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.deletePhoto);
-
+router.get('/properties/:id/overview', propertyController.getPropertyOverview);
 // -------------------- Listing Routes --------------------
 router.get('/listings/public/search', listingController.publicSearchListings);
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
@@ -127,4 +128,7 @@ router.post('/places/details', placesProxy.getPlaceDetails);
 router.get('/places/search/suggestions', placesProxy.getPlaceSuggestions);
 router.get('/places/map/image', placesProxy.mapToImageUrl);
 
+// -------------------- Dashboard Routes --------------------
+router.get('/dashboard/stats', authMiddleware, roleMiddleware('admin', 'agent'), dashboardController.getDashboardStats);
+router.get('/dashboard/business-kpis', authMiddleware, dashboardController.getBusinessKpiStats);
 module.exports = router;
