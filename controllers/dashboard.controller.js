@@ -85,7 +85,7 @@ exports.getBusinessKpiStats = async (req, res) => {
     try {
         const company_id = req.user.employee.company_id;
 
-        // 1. Total Revenue This Month (all paid rent bills, security deposits, onboarding fees)
+        // 1. Total Revenue This Month (sum of paid rent bills for this month only)
         const now = new Date();
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
         const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -103,23 +103,7 @@ exports.getBusinessKpiStats = async (req, res) => {
             }
         });
 
-        // Security deposit revenue (from bookings paid this month)
-        const securityRevenue = await db.Booking.sum('security_amount', {
-            where: {
-                status: 'active',
-                created_at: { [Op.gte]: firstDay, [Op.lte]: lastDay },
-                flat_id: {
-                    [Op.in]: db.sequelize.literal(
-                        `(SELECT id FROM flats WHERE company_id = ${company_id})`
-                    )
-                }
-            }
-        });
-
-        // Onboarding fees (if you have a separate model/field, sum it here; otherwise, set to 0)
-        const onboardingRevenue = 0;
-
-        const totalRevenueThisMonth = (parseFloat(rentRevenue) || 0) + (parseFloat(securityRevenue) || 0) + (parseFloat(onboardingRevenue) || 0);
+        const totalRevenueThisMonth = parseFloat(rentRevenue) || 0;
 
         // 2. Appointments Completed
         const appointmentsCompleted = await db.Appointment.count({
