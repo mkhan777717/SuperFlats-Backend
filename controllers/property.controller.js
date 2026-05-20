@@ -7,6 +7,7 @@ const Property = db.Property;
 const Photo = db.Photo;
 const User = db.User;
 const Company = db.Company;
+const { Flat, Tenant, Booking, RentBill } = db;
 
 /**
  * Creates a new property, its features, and photos in a single transaction.
@@ -35,7 +36,7 @@ exports.createProperty = async (req, res) => {
       name, description, address, city, state, zipcode,
       count_1rk, count_1bhk, count_2bhk, count_3bhk, count_3bhk_plus,
       area_sqft, parking, amenities, is_managed,
-      latitude, longitude 
+      latitude, longitude
     } = req.body;
 
     const newProperty = await Property.create({
@@ -55,8 +56,8 @@ exports.createProperty = async (req, res) => {
       parking,
       amenities,
       is_managed,
-      latitude,    
-      longitude,   
+      latitude,
+      longitude,
     }, { transaction });
 
     await transaction.commit();
@@ -96,7 +97,7 @@ exports.getPropertyById = async (req, res) => {
         {
           model: Photo,
           as: 'photos',
-          order: [['is_primary', 'DESC']], 
+          order: [['is_primary', 'DESC']],
         },
       ],
     });
@@ -406,7 +407,7 @@ exports.uploadPhoto = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const propertyId = req.params.id;
-    const { name } = req.body; 
+    const { name } = req.body;
 
     if (!propertyId || !req.file) {
       await transaction.rollback();
@@ -441,7 +442,7 @@ exports.uploadPhoto = async (req, res) => {
 
     const newPhoto = await Photo.create({
       photo_url: photoUrl,
-      name: name || null, 
+      name: name || null,
       imageable_id: propertyId,
       imageable_type: 'Property',
       is_primary: photoCount === 0,
@@ -456,6 +457,73 @@ exports.uploadPhoto = async (req, res) => {
       await transaction.rollback();
     }
     logger.error('Error uploading image:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+/**
+ * Get overview stats for a property:
+ * - total flats
+ * - total vacant flats
+ * - total active tenants
+ * - total monthly rent due (sum of unpaid rent bills for this property for the current month)
+ */
+exports.getPropertyOverview = async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+
+    // 1. Total flats in the property
+    const totalFlats = await Flat.count({ where: { property_id: propertyId } });
+
+    // 2. Total vacant flats (flat_status = 'available')
+    const totalVacantFlats = await Flat.count({
+      where: { property_id: propertyId, flat_status: 'available' }
+    });
+
+    // 3. Total active tenants (status = 'occupied')
+    const totalActiveTenants = await Tenant.count({
+      where: { property_id: propertyId, status: 'occupied' }
+    });
+
+    // 4. Total rent due (all time)
+    // Get all flat IDs for the property
+    const flatIds = await Flat.findAll({
+      where: { property_id: propertyId },
+      attributes: ['id'],
+      raw: true
+    });
+    const flatIdList = flatIds.map(f => f.id);
+
+    let totalRentDue = 0;
+
+    if (flatIdList.length > 0) {
+      // Get all booking IDs for those flats
+      const bookingIds = await Booking.findAll({
+        where: { flat_id: flatIdList },
+        attributes: ['id'],
+        raw: true
+      });
+      const bookingIdList = bookingIds.map(b => b.id);
+
+      if (bookingIdList.length > 0) {
+        // Sum all unpaid rent bills for this property (all time)
+        totalRentDue = await RentBill.sum('amount', {
+          where: {
+            booking_id: bookingIdList,
+            is_paid: false
+          }
+        });
+      }
+    }
+
+    return res.json({
+      totalFlats,
+      totalVacantFlats,
+      totalActiveTenants,
+      totalRentDue: totalRentDue || 0
+    });
+  } catch (error) {
+    logger.error('Error fetching property overview:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 };
