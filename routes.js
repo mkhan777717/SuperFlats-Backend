@@ -62,7 +62,9 @@ router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('a
 router.get('/listings/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getPropertiesSummary);
 
 // -------------------- Appointment Routes --------------------
-router.post('/appointments', authMiddleware, roleMiddleware('client'), appointmentController.createAppointment);
+router.post('/appointments', authMiddleware, appointmentController.createAppointment);
+router.get('/appointments/client', authMiddleware, appointmentController.getClientAppointments);
+router.get('/appointments', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.getAppointments);
 router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), appointmentController.updateAppointment);
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);

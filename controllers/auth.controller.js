@@ -7,13 +7,13 @@ const { userRegistrationSchema } = require('../utils/validator');
 
 
 const User = db.User;
-const Company = db.Company; 
-const Employee = db.Employee; 
-const RefreshToken = db.RefreshToken; 
-const sequelize = db.sequelize; 
+const Company = db.Company;
+const Employee = db.Employee;
+const RefreshToken = db.RefreshToken;
+const sequelize = db.sequelize;
 
 const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
+    return crypto.createHash('sha256').update(token).digest('hex');
 };
 const generateAccessToken = (id, role, company_id) => {
     const payload = { id, role };
@@ -26,7 +26,7 @@ const generateAccessToken = (id, role, company_id) => {
 };
 
 const generateRefreshToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, { 
+    return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
         expiresIn: '90d',
     });
 };
@@ -34,7 +34,7 @@ const generateRefreshToken = (id) => {
 const saveRefreshToken = async (userId, token) => {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 90);
-    await RefreshToken.destroy({ where: { token: hashToken(token) } }); 
+    await RefreshToken.destroy({ where: { token: hashToken(token) } });
     await RefreshToken.create({
         token: hashToken(token),
         userId: userId,
@@ -83,7 +83,7 @@ exports.registerAdmin = async (req, res) => {
         const newUser = await User.create({
             name, email, phone_number, role,
             password: hashedPassword,
-            company_id: newCompany.id 
+            company_id: newCompany.id
         }, { transaction: t });
 
         await Employee.create({
@@ -92,10 +92,10 @@ exports.registerAdmin = async (req, res) => {
         }, { transaction: t });
 
         await t.commit();
-        
+
         const accessToken = generateAccessToken(newUser.id, newUser.role, newCompany.id);
         const refreshToken = generateRefreshToken(newUser.id);
-        await saveRefreshToken(newUser.id, refreshToken); 
+        await saveRefreshToken(newUser.id, refreshToken);
 
         logger.info(`New admin registered successfully: ${newUser.email}`);
         res.status(201).json({
@@ -105,8 +105,8 @@ exports.registerAdmin = async (req, res) => {
             phone_number: newUser.phone_number,
             role: newUser.role,
             company_id: newCompany.id,
-            accessToken, 
-            refreshToken, 
+            accessToken,
+            refreshToken,
         });
 
     } catch (error) {
@@ -148,10 +148,10 @@ exports.registerClient = async (req, res) => {
             password: hashedPassword,
         });
 
-        
+
         const accessToken = generateAccessToken(newUser.id, newUser.role);
         const refreshToken = generateRefreshToken(newUser.id);
-        await saveRefreshToken(newUser.id, refreshToken); 
+        await saveRefreshToken(newUser.id, refreshToken);
 
         logger.info(`New client registered successfully: ${newUser.email}`);
         res.status(201).json({
@@ -180,24 +180,58 @@ exports.loginAdmin = async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        if (user.role !== 'admin' && user.role !== 'agent') {
-            logger.warn(`Login failed: User ${email} is not an admin or agent.`);
-            return res.status(401).json({ message: 'You do not have permission to log in here.' });
-        }
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             logger.warn(`Admin login failed for email ${email}: Invalid password.`);
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
+        if (user.role === 'client' && !user.company_id) {
 
+            const t = await sequelize.transaction();
+
+            try {
+
+                const newCompany = await Company.create({
+                    name: `${user.name}'s Company`,
+                }, { transaction: t });
+
+                user.role = 'admin';
+                user.company_id = newCompany.id;
+
+                await user.save({ transaction: t });
+
+                await Employee.create({
+                    user_id: user.id,
+                    company_id: newCompany.id,
+                }, { transaction: t });
+
+                await t.commit();
+
+                await user.reload();
+
+                logger.info(`Client upgraded to admin: ${user.email}`);
+
+            } catch (error) {
+
+                await t.rollback();
+
+                logger.error(
+                    `Failed upgrading client to admin: ${user.email}`,
+                    error
+                );
+
+                return res.status(500).json({
+                    message: 'Failed to upgrade account'
+                });
+            }
+        }
         const employee = await Employee.findOne({ where: { user_id: user.id } });
         const companyId = employee ? employee.company_id : null;
 
-        
+
         const accessToken = generateAccessToken(user.id, user.role, companyId);
         const refreshToken = generateRefreshToken(user.id);
-        await saveRefreshToken(user.id, refreshToken); 
+        await saveRefreshToken(user.id, refreshToken);
 
         logger.info(`Admin/agent logged in successfully: ${user.email}`);
         res.status(200).json({
@@ -227,21 +261,16 @@ exports.loginClient = async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        if (user.role !== 'client') {
-            logger.warn(`Client login failed: User ${email} is not a client.`);
-            return res.status(403).json({ message: 'You do not have permission to log in here.' });
-        }
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             logger.warn(`Client login failed for email ${email}: Invalid password.`);
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        
+
         const accessToken = generateAccessToken(user.id, user.role);
         const refreshToken = generateRefreshToken(user.id);
-        await saveRefreshToken(user.id, refreshToken); 
+        await saveRefreshToken(user.id, refreshToken);
 
         logger.info(`Client logged in successfully: ${user.email}`);
         res.status(200).json({
@@ -272,36 +301,36 @@ exports.tokenRefresh = async (req, res) => {
     }
 
     try {
-        
+
         const decoded = jwt.verify(incomingToken, process.env.JWT_REFRESH_SECRET);
         const userId = decoded.id;
 
-        
-     const hashedIncoming = hashToken(incomingToken);
 
-    const storedToken = await RefreshToken.findOne({
-    where: { token: hashedIncoming, userId }
-    });
+        const hashedIncoming = hashToken(incomingToken);
+
+        const storedToken = await RefreshToken.findOne({
+            where: { token: hashedIncoming, userId }
+        });
 
 
         if (!storedToken) {
-            
+
             logger.warn(`[Security] Refresh Token not found/invalid for user ${userId}`);
             return res.status(401).json({ message: 'Invalid Refresh Token' });
         }
 
-        
+
         if (storedToken.expiryDate < new Date()) {
-            await RefreshToken.destroy({ where: { id: storedToken.id } }); 
+            await RefreshToken.destroy({ where: { id: storedToken.id } });
             return res.status(401).json({ message: 'Refresh token was expired. Please make a new signin request' });
         }
 
-        
-        
-        await RefreshToken.destroy({ where: { id: storedToken.id } });
-        
 
-        
+
+        await RefreshToken.destroy({ where: { id: storedToken.id } });
+
+
+
         const user = await User.findByPk(userId);
         let companyId = null;
         if (user.role === 'admin' || user.role === 'agent') {
@@ -309,10 +338,10 @@ exports.tokenRefresh = async (req, res) => {
             companyId = employee ? employee.company_id : null;
         }
 
-        
+
         const newAccessToken = generateAccessToken(user.id, user.role, companyId);
         const newRefreshToken = generateRefreshToken(user.id);
-        await saveRefreshToken(user.id, newRefreshToken); 
+        await saveRefreshToken(user.id, newRefreshToken);
 
         logger.info(`Token refreshed successfully for user ID: ${user.id}`);
         res.status(200).json({

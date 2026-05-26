@@ -264,6 +264,81 @@ exports.getAppointments = async (req, res) => {
 
 };
 
+exports.getClientAppointments = async (req, res) => {
+  try {
+    const { id: userId } = req.user;
+    const {
+      limit = 20,
+      offset = 0,
+      status,
+    } = req.query;
+
+    const finalLimit = parseInt(limit, 10);
+    const finalOffset = parseInt(offset, 10);
+
+    let whereClause = {};
+    let scheduledAtOrder = 'ASC'; 
+
+
+
+    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+
+    if (status) {
+      const lowerStatus = status.toLowerCase();
+
+      if (lowerStatus === 'upcoming') {
+        whereClause.status = { [Op.ne]: 'completed' };
+        scheduledAtOrder = 'ASC';
+      } else if (validStatuses.includes(lowerStatus)) {
+        whereClause.status = lowerStatus;
+
+        if (lowerStatus === 'completed' || lowerStatus === 'cancelled') {
+          scheduledAtOrder = 'DESC';
+        } else {
+          scheduledAtOrder = 'ASC';
+        }
+      }
+    }
+
+    const { count, rows } = await Appointment.findAndCountAll({
+      where: { user_id: userId, ...whereClause },
+      include: [
+        { 
+          model: db.Listing, 
+          as: 'listing',
+          include: [{ 
+            model: db.Flat, 
+            as: 'flat', 
+            include: [{
+              model: db.Property,
+              as: 'property' 
+            }]
+          }], 
+        },
+        { model: db.User, as: 'user' },
+      ],
+
+      order: [['scheduled_at', scheduledAtOrder]],
+
+      limit: finalLimit,
+      offset: finalOffset,
+    });
+
+
+    res.status(200).json({
+      totalItems: count,
+      totalPages: Math.ceil(count / finalLimit),
+      currentPage: Math.floor(finalOffset / finalLimit) + 1,
+      appointments: rows,
+    });
+
+  } catch (error) {
+    logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+
+};
+
 // Get a single appointment by ID
 /**
  * @param {object} req - The request object.
