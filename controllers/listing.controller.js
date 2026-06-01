@@ -43,14 +43,13 @@ exports.publicSearchListings = async (req, res) => {
             landmark_coords, // NEW: Landmark coordinates and radius
         } = req.query;
         let finalType = type;
-        if(type=='3BHK_PLUS')
-        {
-            finalType='3BHK+';
+        if (type == '3BHK_PLUS') {
+            finalType = '3BHK+';
         }
-        const listingWhere = { status: 'active' }; 
+        const listingWhere = { status: 'active' };
         const propertyWhere = {};
         const flatWhere = {};
-        
+
         // -------------------------
         // 1. PRICE FILTER
         // -------------------------
@@ -77,7 +76,7 @@ exports.publicSearchListings = async (req, res) => {
         // -------------------------
         // 4. LANDMARK SEARCH (GEOSPATIAL FILTER) - NEW LOGIC
         // -------------------------
-       if (landmark_coords) {
+        if (landmark_coords) {
             try {
                 const coords = JSON.parse(landmark_coords);
                 const landmarkConditions = coords.map(coord => {
@@ -101,10 +100,10 @@ exports.publicSearchListings = async (req, res) => {
                     // This entire array is then ORed.
                     propertyWhere[Op.or] = landmarkConditions;
                 }
-                
+
                 // ... (rest of the logic for clearing propertyWhere.city remains)
                 if (propertyWhere[Op.or]) {
-                     delete propertyWhere.city;
+                    delete propertyWhere.city;
                 }
 
             } catch (e) {
@@ -131,7 +130,7 @@ exports.publicSearchListings = async (req, res) => {
         // 6. SORTING AND PAGINATION
         // -------------------------
         const validSortColumns = ['created_at', 'monthly_rent'];
-        const reqSortBy = sort_by || sortBy || 'created_at'; 
+        const reqSortBy = sort_by || sortBy || 'created_at';
         const reqSortOrder = sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -151,7 +150,7 @@ exports.publicSearchListings = async (req, res) => {
                     as: 'flat',
                     required: true,
                     where: flatWhere,
-                    
+
                     include: [
                         {
                             model: Property,
@@ -159,7 +158,7 @@ exports.publicSearchListings = async (req, res) => {
                             required: true,
                             where: propertyWhere, // Property filtering applied here
                             // Make sure 'latitude' and 'longitude' are in your Property model
-                           
+
                         },
                         {
                             model: Photo,
@@ -167,12 +166,18 @@ exports.publicSearchListings = async (req, res) => {
                             separate: true,
                             order: [['is_primary', 'DESC']],
                         },
+
                     ],
                 },
                 {
                     model: Company,
                     as: 'company',
                     attributes: ['id', 'name'],
+                },
+                {
+                    model: User,
+                    as: 'lister',
+                    attributes: ['profile_image', 'name', 'id'],
                 },
             ],
             order,
@@ -282,7 +287,7 @@ exports.getMyListings = async (req, res) => {
         }
 
         const validSortColumns = ['created_at', 'monthly_rent'];
-        const reqSortBy = sort_by || sortBy || 'created_at'; 
+        const reqSortBy = sort_by || sortBy || 'created_at';
         const reqSortOrder = sortOrder || sortOrder || 'DESC';
         const finalSortBy = validSortColumns.includes(reqSortBy) ? reqSortBy : 'created_at';
         const finalSortOrder = reqSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -542,9 +547,9 @@ exports.getPropertiesSummary = async (req, res) => {
 
                 [
                     db.sequelize.fn('COUNT', db.sequelize.where(db.sequelize.col('flats->listings.status'), {
-                        [Op.in]: ['pending'] 
+                        [Op.in]: ['pending']
                     })),
-                    'pendingListingsCount' 
+                    'pendingListingsCount'
                 ],
 
                 [
@@ -563,11 +568,11 @@ exports.getPropertiesSummary = async (req, res) => {
                 {
                     model: Flat,
                     as: 'flats',
-                    attributes: [], 
+                    attributes: [],
                     required: false,
                     include: [{
                         model: Listing,
-                        as: 'listings', 
+                        as: 'listings',
                         attributes: [],
                         required: false,
                     }],
@@ -610,6 +615,34 @@ exports.getPropertiesSummary = async (req, res) => {
 
     } catch (error) {
         logger.error('Error fetching property listing summary:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+//get all listings for a spesfic company
+exports.getListingsByCompany = async (req, res) => {
+    try {
+        const { companyId } = req.params;
+
+        const listings = await Listing.findAll({
+            where: { company_id: companyId },
+            include: [
+                {
+                    model: Flat,
+                    as: 'flat',
+                    include: [
+                        { model: Property, as: 'property' },
+                        { model: Photo, as: 'photos' }
+                    ]
+                },
+                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
+                { model: Company, as: 'company' },
+            ],
+        });
+
+        res.status(200).json(listings);
+    } catch (error) {
+        logger.error(`Error fetching listings for company ${req.params.companyId}:`, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
