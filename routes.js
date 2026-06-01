@@ -51,24 +51,27 @@ router.delete('/properties/:id', authMiddleware, roleMiddleware('admin'), proper
 router.post('/properties/upload-photo/:id', authMiddleware, upload.single('photo'), propertyController.uploadPhoto);
 router.delete('/properties/:propertyId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), propertyController.deletePhoto);
 router.get('/properties/:id/overview', propertyController.getPropertyOverview);
+
 // -------------------- Listing Routes --------------------
-router.get('/listings/public/search', listingController.publicSearchListings);
+router.get('/listings/public/search', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.publicSearchListings);
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
 router.get('/listings/me', authMiddleware, roleMiddleware('agent', 'admin'), listingController.getMyListings);
-router.get('/listings/:id', listingController.getListingById);
+router.get('/listings/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
 router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getListingsByProperty);
 router.get('/listings/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getPropertiesSummary);
+router.get('/listings/public/company/:companyId', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.getListingsByCompany);
 
 // -------------------- Appointment Routes --------------------
 router.post('/appointments', authMiddleware, appointmentController.createAppointment);
 router.get('/appointments/client', authMiddleware, appointmentController.getClientAppointments);
 router.get('/appointments', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.getAppointments);
 router.patch('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), appointmentController.updateAppointment);
+router.patch('/appointments/:id/cancel', authMiddleware, appointmentController.cancelAppointmentForClient);
 router.get('/appointments/me', authMiddleware, appointmentController.getAppointments);
 router.get('/appointments/:id', authMiddleware, appointmentController.getAppointmentById);
-router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent'), appointmentController.deleteAppointment);
+router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), appointmentController.deleteAppointment);
 router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback);
 
 // -------------------- Employee Routes --------------------

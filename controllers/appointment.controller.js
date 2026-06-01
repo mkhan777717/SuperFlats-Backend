@@ -8,7 +8,6 @@ const User = db.User;
 const Flat = db.Flat;
 const { createAppointmentSchema, patchAppointmentSchema } = require('../utils/validator');
 
-// Create a new appointment with 'non_assigned' status
 exports.createAppointment = async (req, res) => {
   try {
     const { error, value } = createAppointmentSchema.validate(req.body);
@@ -173,6 +172,75 @@ exports.updateAppointment = async (req, res) => {
   }
 };
 
+exports.cancelAppointmentForClient = async (req, res) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { id: userId } = req.user;
+    console.log('Cancel appointment request received for appointment ID:', id, 'by user ID:', userId, 'with body:', req.body);
+
+    const { error, value } = patchAppointmentSchema.validate(req.body);
+    if (error) {
+      await transaction.rollback();
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const { status } = value;
+
+    const appointment = await Appointment.findByPk(id, { transaction });
+    if (!appointment) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Appointment not found.' });
+    }
+
+    if (appointment.user_id !== userId) {
+      await transaction.rollback();
+      return res.status(403).json({ message: 'You are not authorized to modify this appointment.' });
+    }
+
+    if (status && status !== 'cancelled') {
+      await transaction.rollback();
+      return res.status(403).json({ message: 'You are only permitted to cancel your appointment.' });
+    }
+
+    if (status) {
+      appointment.status = status;
+    }
+
+    await appointment.save({ transaction });
+    await transaction.commit();
+
+    const updatedAppointment = await Appointment.findByPk(id, {
+      include: [
+        {
+          model: Listing,
+          as: 'listing',
+          include: [
+            {
+              model: Flat,
+              as: 'flat',
+              include: [{ model: Property, as: 'property' }]
+            }
+          ]
+        },
+        { model: User, as: 'user' },
+        { model: User, as: 'employee' },
+      ]
+    });
+
+    logger.info(`Appointment ${id} updated successfully by user ${userId}.`);
+    res.status(200).json({ message: 'Appointment updated successfully.', appointment: updatedAppointment });
+
+  } catch (error) {
+    // Failsafe check to prevent rolling back an already dropped/finished transaction thread
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
+    logger.error(`Error updating appointment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Internal server error.', details: error.message });
+  }
+};
+
 // Get appointments for the currently authenticated user
 
 exports.getAppointments = async (req, res) => {
@@ -190,7 +258,7 @@ exports.getAppointments = async (req, res) => {
     const finalOffset = parseInt(offset, 10);
 
     let whereClause = {};
-    let scheduledAtOrder = 'ASC'; 
+    let scheduledAtOrder = 'ASC';
 
     if (userRole === 'client') {
       whereClause = { user_id: userId };
@@ -227,17 +295,17 @@ exports.getAppointments = async (req, res) => {
     const { count, rows } = await Appointment.findAndCountAll({
       where: whereClause,
       include: [
-        { 
-          model: db.Listing, 
+        {
+          model: db.Listing,
           as: 'listing',
-          include: [{ 
-            model: db.Flat, 
-            as: 'flat', 
+          include: [{
+            model: db.Flat,
+            as: 'flat',
             include: [{
               model: db.Property,
-              as: 'property' 
+              as: 'property'
             }]
-          }], 
+          }],
         },
         { model: db.User, as: 'user' },
         { model: db.User, as: 'employee' },
@@ -259,7 +327,7 @@ exports.getAppointments = async (req, res) => {
 
   } catch (error) {
     logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
-    res.status(500).json({ error: 'Internal server error.' });
+    res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
 
 };
@@ -277,7 +345,7 @@ exports.getClientAppointments = async (req, res) => {
     const finalOffset = parseInt(offset, 10);
 
     let whereClause = {};
-    let scheduledAtOrder = 'ASC'; 
+    let scheduledAtOrder = 'ASC';
 
 
 
@@ -303,17 +371,17 @@ exports.getClientAppointments = async (req, res) => {
     const { count, rows } = await Appointment.findAndCountAll({
       where: { user_id: userId, ...whereClause },
       include: [
-        { 
-          model: db.Listing, 
+        {
+          model: db.Listing,
           as: 'listing',
-          include: [{ 
-            model: db.Flat, 
-            as: 'flat', 
+          include: [{
+            model: db.Flat,
+            as: 'flat',
             include: [{
               model: db.Property,
-              as: 'property' 
+              as: 'property'
             }]
-          }], 
+          }],
         },
         { model: db.User, as: 'user' },
       ],
@@ -334,7 +402,7 @@ exports.getClientAppointments = async (req, res) => {
 
   } catch (error) {
     logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
-    res.status(500).json({ error: 'Internal server error.' });
+    res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
 
 };
@@ -385,7 +453,7 @@ exports.getAppointmentById = async (req, res) => {
     res.status(200).json(appointment);
   } catch (error) {
     logger.error(`Error fetching appointment ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Internal server error.' });
+    res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
 };
 
@@ -439,7 +507,6 @@ exports.updateAppointmentFeedback = async (req, res) => {
       return res.status(404).json({ message: 'Appointment not found.' });
     }
 
-    // Authorization: client who booked, or admin/agent from same company
     if (userRole === 'client') {
       if (appointment.user_id !== userId) {
         return res.status(403).json({ message: 'You are not authorized to update feedback for this appointment.' });
