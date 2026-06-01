@@ -77,7 +77,8 @@ exports.registerAdmin = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         const newCompany = await Company.create({
-            name: `${name}'s Company`,
+            name: `${name}`,
+            owner_id: null, // will update after creating the user
         }, { transaction: t });
 
         const newUser = await User.create({
@@ -85,7 +86,8 @@ exports.registerAdmin = async (req, res) => {
             password: hashedPassword,
             company_id: newCompany.id
         }, { transaction: t });
-
+        newCompany.owner_id = newUser.id;
+        await newCompany.save({ transaction: t });
         await Employee.create({
             user_id: newUser.id,
             company_id: newCompany.id,
@@ -192,7 +194,8 @@ exports.loginAdmin = async (req, res) => {
             try {
 
                 const newCompany = await Company.create({
-                    name: `${user.name}'s Company`,
+                    name: `${user.name}`,
+                    owner_id: user.id,
                 }, { transaction: t });
 
                 user.role = 'admin';

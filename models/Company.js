@@ -11,6 +11,10 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    owner_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
   }, {
     tableName: 'companies',
     timestamps: true,
@@ -39,6 +43,13 @@ module.exports = (sequelize) => {
       as: 'employees',
       onDelete: 'CASCADE',
     });
+    Company.associate = (models) => {
+      Company.belongsTo(models.User, {
+        foreignKey: 'owner_id',
+        as: 'owner',
+        onDelete: 'CASCADE',
+      });
+    }
   };
 
   return Company;
