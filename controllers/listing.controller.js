@@ -623,26 +623,54 @@ exports.getPropertiesSummary = async (req, res) => {
 exports.getListingsByCompany = async (req, res) => {
     try {
         const { companyId } = req.params;
+        const { type } = req.query;
+
+        // Normalize your incoming type query to match your database ENUM options exactly
+        let formattedType = undefined;
+        if (type) {
+            const upperType = type.toUpperCase();
+            formattedType = upperType === '3BHK_PLUS' ? '3BHK+' : upperType;
+        }
 
         const listings = await Listing.findAll({
-            where: { company_id: companyId },
+            where: {
+                company_id: companyId,
+                status: 'active'
+            },
             include: [
                 {
                     model: Flat,
                     as: 'flat',
+                    // Use standard object validation properties on the targeted model block directly
+                    where: formattedType ? { type: formattedType } : undefined,
+                    required: !!formattedType, // Forces an INNER JOIN if type filter is present
                     include: [
-                        { model: Property, as: 'property' },
-                        { model: Photo, as: 'photos' }
+                        {
+                            model: Property,
+                            as: 'property',
+
+                        },
+                        {
+                            model: Photo,
+                            as: 'photos'
+                        }
                     ]
                 },
-                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
-                { model: Company, as: 'company' },
+                {
+                    model: User,
+                    as: 'lister',
+                    attributes: { exclude: ['password'] }
+                },
+                {
+                    model: Company,
+                    as: 'company'
+                },
             ],
         });
 
         res.status(200).json(listings);
     } catch (error) {
         logger.error(`Error fetching listings for company ${req.params.companyId}:`, error);
-        res.status(500).json({ error: 'Internal server error.' });
+        res.status(500).json({ error: 'Internal server error.', details: error.message });
     }
 };
