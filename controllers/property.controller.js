@@ -150,7 +150,6 @@ exports.getProperties = async (req, res) => {
   const validSortColumns = ['created_at', 'name', 'area_sqft'];
   const validRoomCountTypes = ['1rk', '1bhk', '2bhk', '3bhk', '3bhk_plus'];
 
-
   if (keywords) {
     andConditions.push({
       [Op.or]: [
@@ -175,7 +174,6 @@ exports.getProperties = async (req, res) => {
     whereConditions[Op.and] = andConditions;
   }
 
-
   const finalSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
   const finalSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const finalLimit = parseInt(limit, 10);
@@ -183,6 +181,29 @@ exports.getProperties = async (req, res) => {
 
   try {
     const results = await Property.findAndCountAll({
+      // Drop this directly into your Property.findAndCountAll options object block:
+      attributes: {
+        include: [
+          // 🚀 1. SUBQUERY FOR TOTAL FLATS (Preserved)
+          [
+            literal(`(
+        SELECT COUNT(*)
+        FROM flats AS flat
+        WHERE flat.property_id = Property.id
+      )`),
+            'total_flats'
+          ],
+          // 🚀 2. FIXED SUBQUERY FOR TOTAL TENANTS (Direct structural relationship mapped)
+          [
+            literal(`(
+        SELECT COUNT(*)
+        FROM tenants AS tenant
+        WHERE tenant.property_id = Property.id
+      )`),
+            'total_tenants'
+          ]
+        ]
+      },
       where: whereConditions,
       include: [
         { model: Company, as: 'company' },
