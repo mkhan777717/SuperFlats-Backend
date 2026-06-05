@@ -1,7 +1,7 @@
 const db = require('../models');
 const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
-const { employeeCreationSchema, updateEmployeeRoleSchema } = require('../utils/validator');
+const { employeeCreationSchema, updateEmployeeSchema } = require('../utils/validator');
 const { Op } = require('sequelize');
 const Employee = db.Employee;
 const User = db.User;
@@ -27,7 +27,7 @@ exports.createEmployee = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { name, email, password, role, phone_number , status} = req.body;
+    const { name, email, password, role, phone_number, status } = req.body;
 
     const userExists = await User.findOne({
       where: { email },
@@ -106,7 +106,7 @@ exports.getEmployeeById = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image', 'status']
+        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
       },
       {
         model: Company,
@@ -139,8 +139,8 @@ exports.getEmployeesByCompany = async (req, res) => {
 
   const {
     keywords,
-    sortBy = 'joined_at', 
-    sortOrder = 'ASC',    
+    sortBy = 'joined_at',
+    sortOrder = 'ASC',
     limit = 10,
     offset = 0,
   } = queryParams;
@@ -151,7 +151,7 @@ exports.getEmployeesByCompany = async (req, res) => {
 
   const andConditions = [];
 
-  const validEmployeeSortColumns = ['joined_at', 'id', 'user_id']; 
+  const validEmployeeSortColumns = ['joined_at', 'id', 'user_id'];
 
   if (keywords) {
     andConditions.push({
@@ -178,7 +178,7 @@ exports.getEmployeesByCompany = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image', 'status']
+        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
       }],
       limit: finalLimit,
       offset: finalOffset,
@@ -193,7 +193,7 @@ exports.getEmployeesByCompany = async (req, res) => {
       totalPages: totalPages,
       currentPage: currentPage,
       limit: finalLimit,
-      employees: results.rows, 
+      employees: results.rows,
     });
 
   } catch (error) {
@@ -203,16 +203,16 @@ exports.getEmployeesByCompany = async (req, res) => {
 };
 
 // Update an employee's role by updating their user account
-exports.updateEmployeeRole = async (req, res) => {
+exports.updateEmployee = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
-    const { error, value } = updateEmployeeRoleSchema.validate(req.body);
+    const { error, value } = updateEmployeeSchema.validate(req.body);
     if (error) {
       await transaction.rollback();
       return res.status(400).json({ message: error.details[0].message });
     }
-    const { role } = value;
+    const { role, status } = value;
 
     const employee = await Employee.findByPk(id, { transaction });
     if (!employee) {
@@ -249,10 +249,14 @@ exports.updateEmployeeRole = async (req, res) => {
     }
 
     user.role = role;
+    employee.status = status;
     await user.save({ transaction });
+    await employee.save({ transaction });
 
     await transaction.commit();
-    logger.info(`User role for employee ID ${id} updated to: ${role}`);
+    if (role) logger.info(`Employee ID ${id} role updated to: ${role}`);
+    if (status) logger.info(`Employee ID ${id} status updated to: ${status}`);
+
     res.status(200).json({
       message: 'Employee role updated successfully.',
       user: {
@@ -261,7 +265,7 @@ exports.updateEmployeeRole = async (req, res) => {
         email: user.email,
         phone_number: user.phone_number,
         role: user.role,
-        status: user.status,
+        status: employee.status,
       }
     });
 

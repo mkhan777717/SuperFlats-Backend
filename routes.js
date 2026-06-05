@@ -21,6 +21,7 @@ const dashboardController = require('./controllers/dashboard.controller');
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
 const roleMiddleware = require('./middlewares/roleMiddleware');
+const { enforceListingLimit, enforceEmployeeLimit, enforceListingLimitOnUpdate } = require('./middlewares/subscriptionGuard');
 
 // Set up multer for file storage
 const storage = multer.memoryStorage();
@@ -54,10 +55,10 @@ router.get('/properties/:id/overview', propertyController.getPropertyOverview);
 
 // -------------------- Listing Routes --------------------
 router.get('/listings/public/search', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.publicSearchListings);
-router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), listingController.createListing);
+router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), enforceListingLimit, listingController.createListing);
 router.get('/listings/me', authMiddleware, roleMiddleware('agent', 'admin'), listingController.getMyListings);
 router.get('/listings/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.getListingById);
-router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.updateListing);
+router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), enforceListingLimitOnUpdate, listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
 router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getListingsByProperty);
 router.get('/listings/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getPropertiesSummary);
@@ -75,10 +76,10 @@ router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agen
 router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback);
 
 // -------------------- Employee Routes --------------------
-router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
+router.post('/employees', authMiddleware, roleMiddleware('admin'), enforceEmployeeLimit, employeeController.createEmployee);
 router.get('/employees/', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeesByCompany);
 router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeeById);
-router.put('/employees/:id/role', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployeeRole);
+router.put('/employees/:id', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployee);
 router.delete('/employees/:id', authMiddleware, roleMiddleware('admin'), employeeController.deleteEmployee);
 
 // -------------------- Booking Routes --------------------

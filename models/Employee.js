@@ -24,7 +24,7 @@ module.exports = (sequelize) => {
     status: {
       type: DataTypes.ENUM('active', 'inactive'),
       allowNull: false,
-      defaultValue: 'inactive',
+      defaultValue: 'active',
     },
   }, {
     tableName: 'employees',

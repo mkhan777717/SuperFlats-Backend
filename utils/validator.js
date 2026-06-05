@@ -147,13 +147,14 @@ const employeeCreationSchema = Joi.object({
   phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
-  status: Joi.string().valid('active', 'inactive').optional(),
+  status: Joi.string().valid('active', 'inactive').required(),
   role: Joi.string().valid('agent', 'admin').required(),
 });
 
 // Joi schema for updating an employee's role
-const updateEmployeeRoleSchema = Joi.object({
-  role: Joi.string().valid('agent', 'admin').required(),
+const updateEmployeeSchema = Joi.object({
+  role: Joi.string().valid('agent', 'admin').optional(),
+  status: Joi.string().valid('active', 'inactive').optional(),
 });
 
 
@@ -207,7 +208,7 @@ module.exports = {
   createBookingSchema,
   updateBookingSchema,
   employeeCreationSchema,
-  updateEmployeeRoleSchema,
+  updateEmployeeSchema,
   createAppointmentSchema,
   patchAppointmentSchema, // The new consolidated schema
   createTenantSchema,
