@@ -27,7 +27,7 @@ exports.createEmployee = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { name, email, password, role, phone_number } = req.body;
+    const { name, email, password, role, phone_number , status} = req.body;
 
     const userExists = await User.findOne({
       where: { email },
@@ -65,6 +65,7 @@ exports.createEmployee = async (req, res) => {
     const newEmployee = await Employee.create({
       user_id: newUser.id,
       company_id: companyId,
+      status: status,
     }, { transaction });
     await transaction.commit();
 
@@ -82,6 +83,7 @@ exports.createEmployee = async (req, res) => {
         id: newEmployee.id,
         company_id: newEmployee.company_id,
         joined_at: newEmployee.joined_at,
+        status: newEmployee.status,
       },
     });
 
@@ -104,7 +106,7 @@ exports.getEmployeeById = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
+        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image', 'status']
       },
       {
         model: Company,
@@ -127,6 +129,7 @@ exports.getEmployeeById = async (req, res) => {
 
 // Get all employees for a specific company
 exports.getEmployeesByCompany = async (req, res) => {
+
   if (!req.user || !req.user.employee || !req.user.employee.company_id) {
     return res.status(401).json({ message: 'Authentication required or user not associated with a company.' });
   }
@@ -175,7 +178,7 @@ exports.getEmployeesByCompany = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image']
+        attributes: ['id', 'name', 'email', 'phone_number', 'role', 'profile_image', 'status']
       }],
       limit: finalLimit,
       offset: finalOffset,
@@ -258,6 +261,7 @@ exports.updateEmployeeRole = async (req, res) => {
         email: user.email,
         phone_number: user.phone_number,
         role: user.role,
+        status: user.status,
       }
     });
 

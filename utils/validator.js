@@ -147,6 +147,7 @@ const employeeCreationSchema = Joi.object({
   phone_number: Joi.string().pattern(/^[0-9]{10,15}$/).required().messages({
     'string.pattern.base': 'Phone number must be between 10 and 15 digits.'
   }),
+  status: Joi.string().valid('active', 'inactive').optional(),
   role: Joi.string().valid('agent', 'admin').required(),
 });
 

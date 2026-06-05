@@ -21,6 +21,11 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: DataTypes.NOW,
     },
+    status: {
+      type: DataTypes.ENUM('active', 'inactive'),
+      allowNull: false,
+      defaultValue: 'inactive',
+    },
   }, {
     tableName: 'employees',
     timestamps: true,
