@@ -427,7 +427,7 @@ exports.getListingById = async (req, res) => {
                     ]
                 },
                 { model: User, as: 'lister', attributes: { exclude: ['password'] } },
-                { model: Company, as: 'company' },
+                { model: Company, as: 'company', attributes: ['id', 'name'] },
             ],
         });
 
@@ -663,7 +663,8 @@ exports.getListingsByCompany = async (req, res) => {
                 },
                 {
                     model: Company,
-                    as: 'company'
+                    as: 'company',
+                    attributes: ['id', 'name']
                 },
             ],
         });

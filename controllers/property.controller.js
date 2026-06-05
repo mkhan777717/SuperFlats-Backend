@@ -64,7 +64,7 @@ exports.createProperty = async (req, res) => {
 
     const propertyWithAssociations = await Property.findByPk(newProperty.id, {
       include: [
-        { model: Company, as: 'company' },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
         { model: Photo, as: 'photos' }
       ]
     });
@@ -206,7 +206,7 @@ exports.getProperties = async (req, res) => {
       },
       where: whereConditions,
       include: [
-        { model: Company, as: 'company' },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
         {
           model: Photo,
           as: 'photos',
@@ -277,7 +277,7 @@ exports.updateProperty = async (req, res) => {
 
     const updatedPropertyWithAssociations = await Property.findByPk(id, {
       include: [
-        { model: Company, as: 'company' },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
         {
           model: Photo,
           as: 'photos',
