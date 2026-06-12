@@ -252,6 +252,7 @@ exports.getAppointments = async (req, res) => {
       offset = 0,
       employeeId,
       status,
+      date, // 1. Added date query parameter
     } = req.query;
 
     const finalLimit = parseInt(limit, 10);
@@ -272,6 +273,21 @@ exports.getAppointments = async (req, res) => {
       whereClause.employee_id = employeeId;
     }
 
+    // ==========================================
+    // 2. NEW: TODAY'S APPOINTMENT DATE FILTER
+    // ==========================================
+    if (date && date.toLowerCase() === 'today') {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      // Matches any appointment between 12:00 AM and 11:59 PM today
+      whereClause.scheduled_at = {
+        [Op.between]: [startOfToday, endOfToday]
+      };
+    }
 
     const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
 
@@ -310,13 +326,10 @@ exports.getAppointments = async (req, res) => {
         { model: db.User, as: 'user' },
         { model: db.User, as: 'employee' },
       ],
-
       order: [['scheduled_at', scheduledAtOrder]],
-
       limit: finalLimit,
       offset: finalOffset,
     });
-
 
     res.status(200).json({
       totalItems: count,
@@ -329,7 +342,6 @@ exports.getAppointments = async (req, res) => {
     logger.error(`Error fetching appointments for user ${req.user.id}:`, error);
     res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
-
 };
 
 exports.getClientAppointments = async (req, res) => {
