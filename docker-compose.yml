@@ -42,11 +42,7 @@ services:
       - .env
     environment:
       DB_HOST: db
-    command: >
-      sh -c "
-      npx sequelize-cli db:migrate &&
-      npm start
-      "
+    command: npm start
     logging:
       options:
         max-size: "10m"
