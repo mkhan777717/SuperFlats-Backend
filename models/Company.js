@@ -15,6 +15,29 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    plan_type: {
+      type: DataTypes.ENUM('free', 'pro', 'org'),
+      allowNull: false,
+      defaultValue: 'free',
+    },
+    subscription_status: {
+      type: DataTypes.ENUM('active', 'cancelled', 'none'),
+      allowNull: false,
+      defaultValue: 'none',
+    },
+    subscription_expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    google_original_order_id: {
+      type: DataTypes.STRING,
+      allowNull: true, // Useful for tracking webhook events from Google
+    },
+    is_verified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    }
   }, {
     tableName: 'companies',
     timestamps: true,
