@@ -24,6 +24,7 @@ coverage
 /logs
 
 serviceAccountKey.json
+google-service-account.json
 
 #server
 schema.sql

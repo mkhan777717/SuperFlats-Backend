@@ -16,6 +16,7 @@ const rentController = require('./controllers/rent.controller');
 const favoritesController = require('./controllers/favorites.controller');
 const placesProxy = require('./controllers/places-proxy.controller');
 const dashboardController = require('./controllers/dashboard.controller');
+const subscriptionController = require('./controllers/subscription.controller');
 
 
 // Import middlewares
@@ -76,7 +77,7 @@ router.delete('/appointments/:id', authMiddleware, roleMiddleware('admin', 'agen
 router.patch('/appointments/:id/feedback', authMiddleware, appointmentController.updateAppointmentFeedback);
 
 // -------------------- Employee Routes --------------------
-router.post('/employees', authMiddleware, roleMiddleware('admin'), enforceEmployeeLimit, employeeController.createEmployee);
+router.post('/employees', authMiddleware, roleMiddleware('admin'), employeeController.createEmployee);
 router.get('/employees/', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeesByCompany);
 router.get('/employees/:id', authMiddleware, roleMiddleware('admin', 'agent'), employeeController.getEmployeeById);
 router.put('/employees/:id', authMiddleware, roleMiddleware('admin'), employeeController.updateEmployee);
@@ -137,4 +138,8 @@ router.get('/places/map/image', placesProxy.mapToImageUrl);
 // -------------------- Dashboard Routes --------------------
 router.get('/dashboard/stats', authMiddleware, roleMiddleware('admin', 'agent'), dashboardController.getDashboardStats);
 router.get('/dashboard/business-kpis', authMiddleware, dashboardController.getBusinessKpiStats);
+
+// -------------------- Google Play Webhook -----------------
+router.post('/subscription/google-play-webhook', subscriptionController.googlePlayWebhook);
+router.post('/subscription/verify', authMiddleware, subscriptionController.verifyPurchase);
 module.exports = router;

@@ -103,7 +103,7 @@ exports.publicSearchListings = async (req, res) => {
 
                 // ... (rest of the logic for clearing propertyWhere.city remains)
                 if (propertyWhere[Op.or]) {
-                    delete propertyWhere.city;
+                      propertyWhere.city;
                 }
 
             } catch (e) {
