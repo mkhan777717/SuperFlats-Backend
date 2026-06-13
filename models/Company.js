@@ -31,7 +31,7 @@ module.exports = (sequelize) => {
     },
     google_original_order_id: {
       type: DataTypes.STRING,
-      allowNull: true, // Useful for tracking webhook events from Google
+      allowNull: true,
     },
     is_verified: {
       type: DataTypes.BOOLEAN,
@@ -45,6 +45,7 @@ module.exports = (sequelize) => {
     updatedAt: 'updated_at',
   });
 
+  // Fixed: All associations grouped properly inside a single associate function
   Company.associate = (models) => {
     Company.hasMany(models.User, {
       foreignKey: 'company_id',
@@ -66,13 +67,11 @@ module.exports = (sequelize) => {
       as: 'employees',
       onDelete: 'CASCADE',
     });
-    Company.associate = (models) => {
-      Company.belongsTo(models.User, {
-        foreignKey: 'owner_id',
-        as: 'owner',
-        onDelete: 'CASCADE',
-      });
-    }
+    Company.belongsTo(models.User, {
+      foreignKey: 'owner_id',
+      as: 'owner',
+      onDelete: 'CASCADE',
+    });
   };
 
   return Company;

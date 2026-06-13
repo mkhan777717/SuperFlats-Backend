@@ -28,6 +28,14 @@ module.exports = {
       allowNull: false,
       defaultValue: false
     })
+    await queryInterface.addColumn('companies', 'owner_id', {
+      type: Sequelize.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      },
+    })
   },
 
   async down(queryInterface, Sequelize) {
@@ -36,5 +44,6 @@ module.exports = {
     await queryInterface.removeColumn('companies', 'subscription_expires_at')
     await queryInterface.removeColumn('companies', 'google_original_order_id')
     await queryInterface.removeColumn('companies', 'is_verified')
+    await queryInterface.removeColumn('companies', 'owner_id')
   }
 };
