@@ -634,7 +634,7 @@ exports.getAvailableFlatsForListing = async (req, res) => {
                 id: {
                     [Op.notIn]: db.sequelize.literal(`(SELECT flat_id FROM listings WHERE company_id = ${company_id})`),
                 },
-                flat_status: 'available',
+
             },
             include: [
                 { model: Property, as: 'property' },
@@ -657,7 +657,7 @@ exports.getAvailableFlatsForBooking = async (req, res) => {
         }
 
         const company_id = req.user.employee.company_id;
-        const { propertyId } = req.params; 
+        const { propertyId } = req.params;
 
         // Authorization check: Ensure the property belongs to the user's company
         const property = await Property.findOne({ where: { id: propertyId, company_id } });
@@ -665,31 +665,31 @@ exports.getAvailableFlatsForBooking = async (req, res) => {
             return res.status(404).json({ message: 'Property not found or does not belong to your company.' });
         }
 
-const availableFlats = await Flat.findAll({
-    where: {
-        company_id: company_id, // Outer query handles company scope
-        property_id: propertyId,
-        flat_status: 'available',
-        id: {
-            // CORRECTED: Removed 'bookings.company_id' entirely.
-            // The outer 'WHERE company_id' check guarantees we only look at 
-            // the correct company's flats, so we just check for active bookings on those flats.
-            [Op.notIn]: db.sequelize.literal(`(
+        const availableFlats = await Flat.findAll({
+            where: {
+                company_id: company_id, // Outer query handles company scope
+                property_id: propertyId,
+                flat_status: 'available',
+                id: {
+                    // CORRECTED: Removed 'bookings.company_id' entirely.
+                    // The outer 'WHERE company_id' check guarantees we only look at 
+                    // the correct company's flats, so we just check for active bookings on those flats.
+                    [Op.notIn]: db.sequelize.literal(`(
                 SELECT flat_id FROM bookings 
                 WHERE status IN ('active', 'confirmed') 
             )`),
-        },
-    },
-    include: [
-        { model: Property, as: 'property' },
-    ],
-    order: [['id', 'DESC']]
-});
+                },
+            },
+            include: [
+                { model: Property, as: 'property' },
+            ],
+            order: [['id', 'DESC']]
+        });
 
         res.status(200).json(availableFlats);
     } catch (error) {
         // Updated error message to reflect the correct function name
-        logger.error('Error fetching available flats for booking:', error); 
+        logger.error('Error fetching available flats for booking:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
@@ -705,7 +705,7 @@ exports.getPropertiesSummary = async (req, res) => {
             attributes: [
                 'id',
                 'name',
-                
+
                 [
                     db.sequelize.fn('COUNT', db.sequelize.col('flats.id')),
                     'totalFlatCount'
@@ -714,7 +714,7 @@ exports.getPropertiesSummary = async (req, res) => {
                     db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flat_status\` = 'available' THEN 1 ELSE 0 END)`),
                     'availableFlatCount'
                 ],
-                
+
                 [
                     db.sequelize.literal(`SUM(CASE WHEN \`flats\`.\`flat_status\` = 'occupied' THEN 1 ELSE 0 END)`),
                     'occupiedFlatCount'
@@ -722,24 +722,24 @@ exports.getPropertiesSummary = async (req, res) => {
             ],
             include: [
                 {
-                    model: db.Flat, 
+                    model: db.Flat,
                     as: 'flats',
-                    attributes: [], 
-                    required: false, 
+                    attributes: [],
+                    required: false,
                 },
                 {
-                    model: db.Photo, 
+                    model: db.Photo,
                     as: 'photos',
                     required: false,
-                    where: { imageable_type: 'Property', is_primary: true } 
+                    where: { imageable_type: 'Property', is_primary: true }
                 },
             ],
-            group: ['Property.id', 'photos.id'], 
+            group: ['Property.id', 'photos.id'],
             order: [['totalFlatCount', 'DESC']]
         });
-        
-        
-        
+
+
+
         const finalSummary = flatSummary.reduce((acc, property) => {
             const currentPhotoObject = Array.isArray(property.photos) && property.photos.length > 0
                 ? property.photos[0]
@@ -752,7 +752,7 @@ exports.getPropertiesSummary = async (req, res) => {
                 availableFlatCount: parseInt(property.dataValues.availableFlatCount, 10) || 0,
                 occupiedFlatCount: parseInt(property.dataValues.occupiedFlatCount, 10) || 0,
             });
-            
+
             return acc;
         }, []);
 
@@ -760,7 +760,7 @@ exports.getPropertiesSummary = async (req, res) => {
         res.status(200).json({ properties: finalSummary });
 
     } catch (error) {
-        console.error('Error fetching flat summary:', error); 
+        console.error('Error fetching flat summary:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 };
