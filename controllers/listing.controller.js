@@ -426,7 +426,7 @@ exports.getListingById = async (req, res) => {
                         { model: Photo, as: 'photos' }
                     ]
                 },
-                { model: User, as: 'lister', attributes: { exclude: ['password'] } },
+                { model: User, as: 'lister', attributes: ['id', 'name', 'profile_image'] },
                 { model: Company, as: 'company', attributes: ['id', 'name'] },
             ],
         });

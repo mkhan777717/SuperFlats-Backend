@@ -55,10 +55,10 @@ router.delete('/properties/:propertyId/photos/:photoId', authMiddleware, roleMid
 router.get('/properties/:id/overview', propertyController.getPropertyOverview);
 
 // -------------------- Listing Routes --------------------
-router.get('/listings/public/search', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.publicSearchListings);
+router.get('/listings/public/search', listingController.publicSearchListings);
 router.post('/listings', authMiddleware, roleMiddleware('agent', 'admin'), enforceListingLimit, listingController.createListing);
 router.get('/listings/me', authMiddleware, roleMiddleware('agent', 'admin'), listingController.getMyListings);
-router.get('/listings/:id', authMiddleware, roleMiddleware('admin', 'agent', 'client'), listingController.getListingById);
+router.get('/listings/:id', listingController.getListingById);
 router.patch('/listings/:id', authMiddleware, roleMiddleware('admin'), enforceListingLimitOnUpdate, listingController.updateListing);
 router.delete('/listings/:id', authMiddleware, roleMiddleware('admin'), listingController.deleteListing);
 router.get('/properties/:propertyId/listings', authMiddleware, roleMiddleware('admin', 'agent'), listingController.getListingsByProperty);
