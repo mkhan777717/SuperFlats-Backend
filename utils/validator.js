@@ -10,6 +10,19 @@ const userRegistrationSchema = Joi.object({
   }),
 });
 
+// Joi schemas for "forgot password" and "reset password"
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+const resetPasswordSchema = Joi.object({
+  token: Joi.string().hex().length(64).required().messages({
+    'string.hex': 'This reset link is invalid.',
+    'string.length': 'This reset link is invalid.',
+  }),
+  password: Joi.string().min(8).required(),
+});
+
 // Joi schema for creating a new appointment
 const createAppointmentSchema = Joi.object({
   listing_id: Joi.number().integer().positive().required(),
@@ -202,6 +215,8 @@ const updateFlatSchema = Joi.object({
 
 module.exports = {
   userRegistrationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   createPropertySchema,
   createListingSchema,
   updateListingSchema,
