@@ -34,6 +34,8 @@ router.post('/auth/admin/login', authController.loginAdmin);
 router.post('/auth/register', authController.registerClient);
 router.post('/auth/login', authController.loginClient);
 router.post('/auth/refresh', authController.tokenRefresh);
+router.post('/auth/forgot-password', authController.forgotPassword);
+router.post('/auth/reset-password', authController.resetPassword);
 
 // -------------------- User Routes --------------------
 // Routes for managing the currently authenticated user's profile

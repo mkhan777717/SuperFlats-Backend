@@ -3,14 +3,23 @@ const crypto = require('crypto');
 const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { userRegistrationSchema } = require('../utils/validator');
+const { Op } = require('sequelize');
+const { userRegistrationSchema, forgotPasswordSchema, resetPasswordSchema } = require('../utils/validator');
+const { sendPasswordResetEmail } = require('../utils/emailService');
 
 
 const User = db.User;
 const Company = db.Company;
 const Employee = db.Employee;
 const RefreshToken = db.RefreshToken;
+const PasswordResetToken = db.PasswordResetToken;
 const sequelize = db.sequelize;
+
+const RESET_TOKEN_TTL_MINUTES = 30;
+const RESET_REQUEST_COOLDOWN_MS = 60 * 1000;
+// Same reply whether or not the email is registered, so the endpoint can't be used to discover accounts.
+const RESET_REQUESTED_MESSAGE = 'If an account exists for that email, we have sent a link to reset the password.';
+const RESET_INVALID_MESSAGE = 'This reset link is invalid or has expired. Please request a new one.';
 
 const hashToken = (token) => {
     return crypto.createHash('sha256').update(token).digest('hex');
@@ -355,5 +364,104 @@ exports.tokenRefresh = async (req, res) => {
     } catch (error) {
         logger.error('Error during token refresh (jwt verification failed):', error);
         res.status(401).json({ message: 'Invalid or expired Refresh Token' });
+    }
+};
+
+/**
+ * Starts a password reset: emails a one-time link that expires after 30 minutes.
+ * Always answers with the same message so it can't be used to discover registered emails.
+ */
+exports.forgotPassword = async (req, res) => {
+    const { error, value } = forgotPasswordSchema.validate(req.body);
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const webAppUrl = (process.env.WEB_APP_URL || '').replace(/\/$/, '');
+    if (!webAppUrl) {
+        logger.error('Password reset requested but WEB_APP_URL is not set.');
+        return res.status(503).json({ message: 'Password reset is temporarily unavailable. Please try again later.' });
+    }
+
+    try {
+        const user = await User.findOne({ where: { email: value.email.trim() } });
+        if (!user) {
+            logger.info(`Password reset requested for unknown email ${value.email}.`);
+            return res.status(200).json({ message: RESET_REQUESTED_MESSAGE });
+        }
+
+        // Basic throttle: at most one reset email per account per minute.
+        const recent = await PasswordResetToken.findOne({
+            where: { user_id: user.id, created_at: { [Op.gt]: new Date(Date.now() - RESET_REQUEST_COOLDOWN_MS) } },
+        });
+        if (recent) {
+            return res.status(200).json({ message: RESET_REQUESTED_MESSAGE });
+        }
+
+        // Only the newest link should work.
+        await PasswordResetToken.destroy({ where: { user_id: user.id, used_at: null } });
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        await PasswordResetToken.create({
+            user_id: user.id,
+            token_hash: hashToken(rawToken),
+            expires_at: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
+        });
+
+        await sendPasswordResetEmail({
+            to: user.email,
+            name: user.name,
+            resetUrl: `${webAppUrl}/reset-password?token=${rawToken}`,
+            expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
+        });
+
+        logger.info(`Password reset link created for user ${user.id}.`);
+        return res.status(200).json({ message: RESET_REQUESTED_MESSAGE });
+    } catch (err) {
+        logger.error(`Error during forgot-password for email ${req.body.email}:`, err);
+        return res.status(500).json({ message: 'We could not send the reset email right now. Please try again later.' });
+    }
+};
+
+/**
+ * Finishes a password reset: checks the one-time token, sets the new password and
+ * signs the user out of other devices by removing their refresh tokens.
+ */
+exports.resetPassword = async (req, res) => {
+    const { error, value } = resetPasswordSchema.validate(req.body);
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const t = await sequelize.transaction();
+    try {
+        const record = await PasswordResetToken.findOne({ where: { token_hash: hashToken(value.token) }, transaction: t });
+        if (!record || record.used_at || record.expires_at < new Date()) {
+            await t.rollback();
+            return res.status(400).json({ message: RESET_INVALID_MESSAGE });
+        }
+
+        const user = await User.findByPk(record.user_id, { transaction: t });
+        if (!user) {
+            await t.rollback();
+            return res.status(400).json({ message: RESET_INVALID_MESSAGE });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(value.password, salt);
+        await user.save({ transaction: t });
+
+        record.used_at = new Date();
+        await record.save({ transaction: t });
+        await PasswordResetToken.destroy({ where: { user_id: user.id, used_at: null }, transaction: t });
+        await RefreshToken.destroy({ where: { userId: user.id }, transaction: t });
+
+        await t.commit();
+        logger.info(`Password reset completed for user ${user.id}.`);
+        return res.status(200).json({ message: 'Your password has been reset. You can now log in with your new password.' });
+    } catch (err) {
+        await t.rollback();
+        logger.error('Error during password reset:', err);
+        return res.status(500).json({ error: 'Internal server error.' });
     }
 };
