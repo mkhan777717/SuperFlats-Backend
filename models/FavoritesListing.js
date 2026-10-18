@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
                 model: 'users',
                 key: 'id',
             },
+            onDelete: 'CASCADE',
         },
         listing_id: {
             type: DataTypes.INTEGER,
@@ -22,6 +23,7 @@ module.exports = (sequelize) => {
                 model: 'listings',
                 key: 'id',
             },
+            onDelete: 'CASCADE',
         },
     }, {
         tableName: 'favorites_listings',
@@ -34,10 +36,12 @@ module.exports = (sequelize) => {
         FavoritesListing.belongsTo(models.User, {
             foreignKey: 'user_id',
             as: 'user',
+            onDelete: 'CASCADE',
         });
         FavoritesListing.belongsTo(models.Listing, {
             foreignKey: 'listing_id',
             as: 'listing',
+            onDelete: 'CASCADE',
         });
     };
 

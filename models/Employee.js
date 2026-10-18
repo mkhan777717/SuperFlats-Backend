@@ -38,12 +38,14 @@ module.exports = (sequelize) => {
     Employee.belongsTo(models.User, {
       foreignKey: 'user_id',
       as: 'user',
+      onDelete: 'CASCADE',
     });
 
     // Add a new association: an employee belongs to a company.
     Employee.belongsTo(models.Company, {
       foreignKey: 'company_id',
       as: 'company',
+      onDelete: 'CASCADE',
     });
   };
 

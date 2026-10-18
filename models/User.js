@@ -75,6 +75,11 @@ module.exports = (sequelize) => {
             as: 'employee',
             onDelete: 'CASCADE',
         });
+        User.hasMany(models.FavoritesListing, {
+            foreignKey: 'user_id',
+            as: 'favorites',
+            onDelete: 'CASCADE',
+        });
 
     };
 

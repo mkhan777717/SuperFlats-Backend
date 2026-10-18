@@ -66,24 +66,34 @@ module.exports = (sequelize) => {
     Listing.belongsTo(models.Flat, {
       foreignKey: 'flat_id',
       as: 'flat',
+      onDelete: 'CASCADE',
     });
 
     // A listing has a lister (the user who created it).
     Listing.belongsTo(models.User, {
       foreignKey: 'lister_id',
       as: 'lister',
+      onDelete: 'CASCADE',
     });
 
     // A listing belongs to a company.
     Listing.belongsTo(models.Company, {
       foreignKey: 'company_id',
       as: 'company',
+      onDelete: 'CASCADE',
     });
 
     // When a Listing is deleted, its Appointments are deleted.
     Listing.hasMany(models.Appointment, {
       foreignKey: 'listing_id',
       as: 'appointments',
+      onDelete: 'CASCADE',
+    });
+
+    // When a Listing is deleted, users' favorites of it are deleted.
+    Listing.hasMany(models.FavoritesListing, {
+      foreignKey: 'listing_id',
+      as: 'favorites',
       onDelete: 'CASCADE',
     });
   };
