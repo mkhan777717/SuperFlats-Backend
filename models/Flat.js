@@ -67,8 +67,8 @@ module.exports = (sequelize) => {
     });
 
     Flat.associate = (models) => {
-        Flat.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company' });
-        Flat.belongsTo(models.Property, { foreignKey: 'property_id', as: 'property' });
+        Flat.belongsTo(models.Company, { foreignKey: 'company_id', as: 'company', onDelete: 'CASCADE' });
+        Flat.belongsTo(models.Property, { foreignKey: 'property_id', as: 'property', onDelete: 'CASCADE' });
         Flat.hasMany(models.Photo, {
             foreignKey: 'imageable_id',
             constraints: false,
