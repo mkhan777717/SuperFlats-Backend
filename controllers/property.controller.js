@@ -3,6 +3,7 @@ const { Op, literal } = require('sequelize');
 const logger = require('../utils/logger');
 const { createPropertySchema } = require('../utils/validator');
 const { uploadFile, deleteFile } = require('../utils/fileService');
+const { deleteVideosFor } = require('../utils/videoProcessor');
 const Property = db.Property;
 const Photo = db.Photo;
 const User = db.User;
@@ -403,6 +404,12 @@ exports.deleteProperty = async (req, res) => {
     }
 
     await Photo.destroy({ where: { imageable_id: id, imageable_type: 'Property' }, transaction });
+
+    // Remove videos of the property and of its flats (files in Firebase + rows)
+    const flatIds = (await db.Flat.findAll({ where: { property_id: id }, attributes: ['id'], transaction })).map((f) => f.id);
+    await deleteVideosFor('Property', id, transaction);
+    await deleteVideosFor('Flat', flatIds, transaction);
+
     await property.destroy({ transaction });
 
     await transaction.commit();

@@ -14,6 +14,7 @@ const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const logger = require('./utils/logger');
 const rentScheduler = require('./tasks/rentScheduler');
+const { recoverStuckVideos } = require('./utils/videoProcessor');
 
 
 // Middleware
@@ -26,6 +27,7 @@ app.use(morgan('dev')); // Log HTTP requests in the console
 db.sequelize.sync({ force: false }) // `force: true` will drop existing tables and re-create them. Use with caution.
   .then(() => {
     logger.info('Database & tables synced successfully!');
+    recoverStuckVideos();
   })
   .catch(err => {
     logger.error('Failed to sync database:', err);

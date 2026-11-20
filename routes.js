@@ -17,12 +17,14 @@ const favoritesController = require('./controllers/favorites.controller');
 const placesProxy = require('./controllers/places-proxy.controller');
 const dashboardController = require('./controllers/dashboard.controller');
 const subscriptionController = require('./controllers/subscription.controller');
+const videoController = require('./controllers/video.controller');
 
 
 // Import middlewares
 const authMiddleware = require('./middlewares/authMiddleware');
 const roleMiddleware = require('./middlewares/roleMiddleware');
 const { enforceListingLimit, enforceEmployeeLimit, enforceListingLimitOnUpdate } = require('./middlewares/subscriptionGuard');
+const uploadVideo = require('./middlewares/videoUpload');
 
 // Set up multer for file storage
 const storage = multer.memoryStorage();
@@ -116,6 +118,15 @@ router.delete('/flats/:flatId', authMiddleware, roleMiddleware('admin'), flatCon
 router.post('/flats/:flatId/photos', authMiddleware, roleMiddleware('admin', 'agent'), upload.single('photo'), flatController.uploadFlatPhoto);
 router.delete('/flats/:flatId/photos/:photoId', authMiddleware, roleMiddleware('admin', 'agent'), flatController.deleteFlatPhoto);
 router.get('/flats/summary/properties', authMiddleware, roleMiddleware('admin', 'agent'), flatController.getPropertiesSummary);
+
+// -------------------- Video Routes --------------------
+// Upload accepts any video format (field "video"), compresses + converts to MP4 in the background.
+router.post('/properties/:id/videos', authMiddleware, roleMiddleware('admin', 'agent'), uploadVideo, videoController.uploadVideo('Property'));
+router.get('/properties/:id/videos', authMiddleware, videoController.listVideos('Property'));
+router.post('/flats/:id/videos', authMiddleware, roleMiddleware('admin', 'agent'), uploadVideo, videoController.uploadVideo('Flat'));
+router.get('/flats/:id/videos', authMiddleware, videoController.listVideos('Flat'));
+router.get('/videos/:videoId', authMiddleware, videoController.getVideo);
+router.delete('/videos/:videoId', authMiddleware, roleMiddleware('admin', 'agent'), videoController.deleteVideo);
 
 // -------------------- Rent Routes (Admin-Only) --------------------
 router.get('/rents/bills', authMiddleware, roleMiddleware('admin', 'agent'), rentController.getAllRentBills);

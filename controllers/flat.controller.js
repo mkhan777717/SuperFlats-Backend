@@ -3,6 +3,7 @@ const { Op, UniqueConstraintError } = require('sequelize');
 const logger = require('../utils/logger');
 const { createFlatSchema, updateFlatSchema } = require('../utils/validator');
 const { uploadFile, deleteFile } = require('../utils/fileService');
+const { deleteVideosFor } = require('../utils/videoProcessor');
 
 const Flat = db.Flat;
 const Property = db.Property;
@@ -249,6 +250,7 @@ exports.deleteFlat = async (req, res) => {
             }
         }));
         await Photo.destroy({ where: { imageable_id: flatId, imageable_type: 'Flat' }, transaction });
+        await deleteVideosFor('Flat', flatId, transaction);
         await flat.destroy({ transaction });
 
         const property = await Property.findByPk(propertyId, { transaction });
